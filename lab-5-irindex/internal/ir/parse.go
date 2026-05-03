@@ -21,7 +21,7 @@ const (
 	tkNEAR
 	tkMSM
 	tkFIRST
-	tkLAST // границы документа (edge): FIRST(w) / LAST(w)
+	tkLAST // границы документа (edge): LAST(w), синоним edge_end(w); FIRST(w), синоним edge_start(w)
 )
 
 type token struct {
@@ -92,9 +92,9 @@ func (l *lexer) next() {
 			l.tok = token{kind: tkNEAR, lit: lit}
 		case "msm":
 			l.tok = token{kind: tkMSM, lit: lit}
-		case "first":
+		case "first", "edge_start":
 			l.tok = token{kind: tkFIRST, lit: lit}
-		case "last":
+		case "last", "edge_end":
 			l.tok = token{kind: tkLAST, lit: lit}
 		default:
 			l.tok = token{kind: tkIdent, lit: lit}

@@ -3,44 +3,44 @@
     "HNSW": {
       "best_by_recall_then_size": {
         "family": "HNSW",
-        "params": "{\"M\": 24, \"efConstruction\": 120, \"efSearch\": 128}",
-        "build_sec": "11.370128",
-        "index_bytes": 72024366,
-        "search_sec": "0.192394",
-        "recall_at_k": "0.678435"
+        "params": "{\"M\": 48, \"efConstruction\": 200, \"efSearch\": 256}",
+        "build_sec": "135.539091",
+        "index_bytes": 912081186,
+        "search_sec": "1.825219",
+        "recall_at_k": "0.996723"
       },
-      "configs_tested": 18
+      "configs_tested": 90
     },
     "IVF_PQ": {
       "best_by_recall_then_size": {
         "family": "IVF_PQ",
-        "params": "{\"nlist\": 128, \"m\": 32, \"nprobe\": 64}",
-        "build_sec": "1.916124",
-        "index_bytes": 4197812,
-        "search_sec": "0.773220",
-        "recall_at_k": "0.481330"
+        "params": "{\"nlist\": 512, \"m\": 64, \"nprobe\": 64}",
+        "build_sec": "11.265173",
+        "index_bytes": 72397492,
+        "search_sec": "19.180187",
+        "recall_at_k": "0.907823"
       },
-      "configs_tested": 16
+      "configs_tested": 105
     },
     "LSH": {
       "best_by_recall_then_size": {
         "family": "LSH",
         "params": "{\"nbits\": 512}",
-        "build_sec": "0.474964",
-        "index_bytes": 6662237,
-        "search_sec": "0.234722",
-        "recall_at_k": "0.215730"
+        "build_sec": "3.417162",
+        "index_bytes": 64262237,
+        "search_sec": "10.947065",
+        "recall_at_k": "0.470058"
       },
-      "configs_tested": 4
+      "configs_tested": 6
     }
   },
   "global_tradeoff_pick": {
     "family": "IVF_PQ",
-    "params": "{\"nlist\": 128, \"m\": 32, \"nprobe\": 16}",
-    "build_sec": "1.916124",
-    "index_bytes": 4197812,
-    "search_sec": "0.202415",
-    "recall_at_k": "0.287300"
+    "params": "{\"nlist\": 512, \"m\": 64, \"nprobe\": 16}",
+    "build_sec": "11.265173",
+    "index_bytes": 72397492,
+    "search_sec": "4.981961",
+    "recall_at_k": "0.874502"
   },
   "global_tradeoff_score_weights": {
     "recall": 0.4,
@@ -50,6 +50,6 @@
   },
   "winner_recall_only": [
     "HNSW",
-    0.678435
+    0.996723
   ]
 }

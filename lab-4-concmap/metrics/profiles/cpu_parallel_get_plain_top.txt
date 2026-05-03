@@ -1,18 +1,17 @@
 File: concmap.test
-Build ID: 653ad8f9e41a98cad0855879f53e4c9a3c594738
+Build ID: 9c31420a4119fdb1209821a8d8475c4832e87ebc
 Type: cpu
-Time: 2026-05-02 15:00:10 MSK
-Duration: 1.34s, Total samples = 17.09s (1271.25%)
-Showing nodes accounting for 16.80s, 98.30% of 17.09s total
-Dropped 48 nodes (cum <= 0.09s)
+Time: 2026-05-02 18:04:57 MSK
+Duration: 1.26s, Total samples = 14.68s (1164.43%)
+Showing nodes accounting for 14.39s, 98.02% of 14.68s total
+Dropped 51 nodes (cum <= 0.07s)
       flat  flat%   sum%        cum   cum%
-    13.08s 76.54% 76.54%     13.10s 76.65%  sync/atomic.(*Int32).Add (inline)
-     1.89s 11.06% 87.60%     16.34s 95.61%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Get
-     0.63s  3.69% 91.28%     17.02s 99.59%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2.1
-     0.48s  2.81% 94.09%      0.48s  2.81%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
-     0.40s  2.34% 96.43%      1.31s  7.67%  runtime.mapaccess2_faststr
-     0.16s  0.94% 97.37%      0.16s  0.94%  aeshashbody
-     0.12s   0.7% 98.07%      0.12s   0.7%  internal/runtime/maps.(*Map).directoryAt (inline)
-     0.04s  0.23% 98.30%      6.36s 37.21%  sync.(*RWMutex).RUnlock
-         0     0% 98.30%      6.78s 39.67%  sync.(*RWMutex).RLock (inline)
-         0     0% 98.30%     17.02s 99.59%  testing.(*B).RunParallel.func1
+    11.18s 76.16% 76.16%     11.20s 76.29%  sync/atomic.(*Int32).Add (inline)
+     1.76s 11.99% 88.15%     14.14s 96.32%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Get
+     0.45s  3.07% 91.21%      0.45s  3.07%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
+     0.42s  2.86% 94.07%     14.60s 99.46%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2.1
+     0.37s  2.52% 96.59%      1.09s  7.43%  runtime.mapaccess2_faststr
+     0.13s  0.89% 97.48%      0.13s  0.89%  aeshashbody
+     0.07s  0.48% 97.96%      5.72s 38.96%  sync.(*RWMutex).RUnlock
+     0.01s 0.068% 98.02%      5.56s 37.87%  sync.(*RWMutex).RLock (inline)
+         0     0% 98.02%     14.60s 99.46%  testing.(*B).RunParallel.func1

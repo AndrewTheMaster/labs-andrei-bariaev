@@ -54,6 +54,33 @@ func TestMSMWINDOW(t *testing.T) {
 	}
 }
 
+func TestEdgeStartEndAliasesMatchFirstLast(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{"hello planet", "solo hello"})
+	fs, err := Parse(`FIRST(hello)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := Parse(`EDGE_START(hello)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(Eval(ix, fs)) != fmt.Sprint(Eval(ix, es)) {
+		t.Fatalf("FIRST vs EDGE_START")
+	}
+	le, err := Parse(`LAST(planet)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ee, err := Parse(`edge_end(planet)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(Eval(ix, le)) != fmt.Sprint(Eval(ix, ee)) {
+		t.Fatalf("LAST vs edge_end")
+	}
+}
+
 func TestFirstLastBoundary(t *testing.T) {
 	ix := NewIndex()
 	buildCorpus(ix, []string{"hello planet", "hello endtoken"})

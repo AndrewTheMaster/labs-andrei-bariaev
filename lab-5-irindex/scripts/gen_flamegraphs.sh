@@ -7,20 +7,68 @@ PORT=18095
 
 mkdir -p "$PLOT_DIR"
 
-f="${PROF_DIR}/cpu_query_idx.prof"
-if [[ ! -f "$f" ]]; then
-  echo "нет $f — сначала make profile"
-  exit 0
-fi
+profiles=(
+  cpu_query_idx
+  mem_query_idx
+  cpu_build_index
+  mem_build_index
+)
 
-fuser -k ${PORT}/tcp 2>/dev/null || true
-sleep 1
-go tool pprof -http=":${PORT}" "$f" &
-PID=$!
-sleep 2
+screenshot_flame_png() {
+  local html="$1"
+  local png="$2"
+  local abs dir base
+  dir="$(cd "$(dirname "$html")" && pwd)"
+  base="$(basename "$html")"
+  local url="file://${dir}/${base}"
+  if [[ ! -f "$html" ]]; then
+    return 1
+  fi
+  for c in google-chrome chromium chromium-browser; do
+    if command -v "$c" >/dev/null 2>&1; then
+      if "$c" --headless=new --no-sandbox --disable-gpu \
+        --screenshot="$png" --window-size="1800,1000" \
+        "$url" 2>/dev/null; then
+        echo "    PNG: $(basename "$png")"
+        return 0
+      fi
+      if "$c" --headless --no-sandbox --disable-gpu \
+        --screenshot="$png" --window-size="1800,1000" \
+        "$url" 2>/dev/null; then
+        echo "    PNG: $(basename "$png")"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
 
-curl -sf "http://localhost:${PORT}/ui/flamegraph" \
-    -o "${PLOT_DIR}/flamegraph_cpu_query_idx.html" || true
+for prof in "${profiles[@]}"; do
+  f="${PROF_DIR}/${prof}.prof"
+  if [[ ! -f "$f" ]]; then
+    echo "skip flamegraph (${prof}: нет $f)"
+    continue
+  fi
+  echo "→ flamegraph: ${prof}"
+  fuser -k "${PORT}/tcp" 2>/dev/null || true
+  sleep 0.5
 
-kill $PID 2>/dev/null || true
-wait $PID 2>/dev/null || true
+  go tool pprof -http=":${PORT}" "$f" &
+  PPROF_PID=$!
+  sleep 2
+
+  out_html="${PLOT_DIR}/flamegraph_${prof}.html"
+  if curl -sf "http://localhost:${PORT}/ui/flamegraph" -o "${out_html}"; then
+    :
+  fi
+
+  kill "$PPROF_PID" 2>/dev/null || true
+  wait "$PPROF_PID" 2>/dev/null || true
+  sleep 0.5
+
+  if screenshot_flame_png "${out_html}" "${PLOT_DIR}/flamegraph_${prof}.png"; then
+    :
+  else
+    echo "    (нет headless chromium — только ${out_html}; открыть в браузере)"
+  fi
+done

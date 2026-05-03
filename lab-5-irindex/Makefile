@@ -58,15 +58,27 @@ plot:
 profile:
 	mkdir -p $(PROF_DIR) $(PLOT_DIR)
 	BENCH_CORPUS='2000' go test ./internal/ir -run='^$$' \
-		-bench '^BenchmarkQueryEvalMixed/idx_2000$$' -benchtime='900ms' \
+		-bench '^BenchmarkQueryEvalMixed/idx_2000$$' -benchmem -benchtime='900ms' \
 		-cpuprofile=$(PROF_DIR)/cpu_query_idx.prof \
 		-memprofile=$(PROF_DIR)/mem_query_idx.prof >/dev/null
+	BENCH_CORPUS='2000' go test ./internal/ir -run='^$$' \
+		-bench '^BenchmarkBuildIndex/corp2000$$' -benchmem -benchtime='900ms' \
+		-cpuprofile=$(PROF_DIR)/cpu_build_index.prof \
+		-memprofile=$(PROF_DIR)/mem_build_index.prof >/dev/null
 	go tool pprof -top $(PROF_DIR)/cpu_query_idx.prof >$(PROF_DIR)/cpu_query_idx_top.txt
-	go tool pprof -top $(PROF_DIR)/mem_query_idx.prof >$(PROF_DIR)/mem_query_idx_mem_top.txt
+	go tool pprof -alloc_space -top $(PROF_DIR)/mem_query_idx.prof >$(PROF_DIR)/mem_query_idx_top.txt
+	go tool pprof -top $(PROF_DIR)/cpu_build_index.prof >$(PROF_DIR)/cpu_build_index_top.txt
+	go tool pprof -alloc_space -top $(PROF_DIR)/mem_build_index.prof >$(PROF_DIR)/mem_build_index_top.txt
 	@if command -v dot >/dev/null 2>&1; then \
 		go tool pprof -png $(PROF_DIR)/cpu_query_idx.prof >$(PLOT_DIR)/pprof_cpu_query_idx.png 2>/dev/null; \
-	else echo "нет graphviz (dot)"; \
+		go tool pprof -alloc_space -png $(PROF_DIR)/mem_query_idx.prof >$(PLOT_DIR)/pprof_mem_query_idx.png 2>/dev/null; \
+		go tool pprof -png $(PROF_DIR)/cpu_build_index.prof >$(PLOT_DIR)/pprof_cpu_build_index.png 2>/dev/null; \
+		go tool pprof -alloc_space -png $(PROF_DIR)/mem_build_index.prof >$(PLOT_DIR)/pprof_mem_build_index.png 2>/dev/null; \
+		echo "dot: call-graph PNG сохранены в $(PLOT_DIR)"; \
+	else \
+		echo "нет graphviz (dot) — только top-тексты и flamegraph HTML при запуске скрипта"; \
 	fi
+	bash scripts/gen_flamegraphs.sh $(PROF_DIR) $(PLOT_DIR)
 
 clean:
 	rm -rf $(METRICS_OUT)

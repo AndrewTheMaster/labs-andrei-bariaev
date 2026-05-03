@@ -1,44 +1,38 @@
 File: concmap.test
-Build ID: 653ad8f9e41a98cad0855879f53e4c9a3c594738
+Build ID: 9c31420a4119fdb1209821a8d8475c4832e87ebc
 Type: alloc_space
-Time: 2026-05-02 15:00:11 MSK
-Showing nodes accounting for 40608.48kB, 100% of 40608.48kB total
+Time: 2026-05-02 18:04:58 MSK
+Showing nodes accounting for 41550.76kB, 100% of 41550.76kB total
       flat  flat%   sum%        cum   cum%
-28871.71kB 71.10% 71.10% 28871.71kB 71.10%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Put
- 6669.01kB 16.42% 87.52%  6669.01kB 16.42%  runtime.allocm
- 1184.27kB  2.92% 90.44%  1184.27kB  2.92%  runtime/pprof.StartCPUProfile
- 1184.27kB  2.92% 93.35%  2208.29kB  5.44%  siaod-hw4-concmap/internal/concmap.makeKeys
- 1024.02kB  2.52% 95.87%  1024.02kB  2.52%  fmt.Sprintf
-  650.62kB  1.60% 97.48%  1163.18kB  2.86%  compress/flate.(*compressor).init
-  512.56kB  1.26% 98.74%   512.56kB  1.26%  compress/flate.newHuffmanEncoder (inline)
-  512.02kB  1.26%   100%   512.02kB  1.26%  testing.(*B).RunParallel.func1
-         0     0%   100%  1163.18kB  2.86%  compress/flate.NewWriter (inline)
-         0     0%   100%   512.56kB  1.26%  compress/flate.newHuffmanBitWriter (inline)
-         0     0%   100%  1163.18kB  2.86%  compress/gzip.(*Writer).Write
-         0     0%   100%  1184.27kB  2.92%  main.main
-         0     0%   100%      513kB  1.26%  runtime.(*scavengerState).wake
-         0     0%   100%      513kB  1.26%  runtime.injectglist
-         0     0%   100%      513kB  1.26%  runtime.injectglist.func1
-         0     0%   100%  1184.27kB  2.92%  runtime.main
-         0     0%   100%     2565kB  6.32%  runtime.mcall
-         0     0%   100%     4104kB 10.11%  runtime.mstart
-         0     0%   100%     4104kB 10.11%  runtime.mstart0
-         0     0%   100%     4104kB 10.11%  runtime.mstart1
-         0     0%   100%  6669.01kB 16.42%  runtime.newm
-         0     0%   100%     2565kB  6.32%  runtime.park_m
-         0     0%   100%  6156.01kB 15.16%  runtime.resetspinning
-         0     0%   100%  6156.01kB 15.16%  runtime.schedule
-         0     0%   100%  6669.01kB 16.42%  runtime.startm
-         0     0%   100%      513kB  1.26%  runtime.sysmon
-         0     0%   100%  6156.01kB 15.16%  runtime.wakep
-         0     0%   100%  1163.18kB  2.86%  runtime/pprof.(*profileBuilder).build
-         0     0%   100%  1163.18kB  2.86%  runtime/pprof.profileWriter
-         0     0%   100%  2208.29kB  5.44%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit
-         0     0%   100% 28871.71kB 71.10%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2
-         0     0%   100% 28871.71kB 71.10%  siaod-hw4-concmap/internal/concmap.fillPlain
-         0     0%   100% 22593.40kB 55.64%  testing.(*B).launch
-         0     0%   100%  8486.60kB 20.90%  testing.(*B).run1.func1
-         0     0%   100%    31080kB 76.54%  testing.(*B).runN
-         0     0%   100%  1184.27kB  2.92%  testing.(*M).Run
-         0     0%   100%  1184.27kB  2.92%  testing.(*M).before
-         0     0%   100%  1184.27kB  2.92%  testing/internal/testdeps.TestDeps.StartCPUProfile
+29423.96kB 70.81% 70.81% 29423.96kB 70.81%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Put
+ 6669.01kB 16.05% 86.86%  6669.01kB 16.05%  runtime.allocm
+ 1696.28kB  4.08% 90.95%  1696.28kB  4.08%  siaod-hw4-concmap/internal/concmap.makeKeys
+ 1184.27kB  2.85% 93.80%  1184.27kB  2.85%  runtime/pprof.StartCPUProfile
+ 1024.03kB  2.46% 96.26%  1024.03kB  2.46%  testing.(*B).RunParallel.func1
+  902.59kB  2.17% 98.43%  1553.21kB  3.74%  compress/flate.NewWriter (inline)
+  650.62kB  1.57%   100%   650.62kB  1.57%  compress/flate.(*compressor).init
+         0     0%   100%  1553.21kB  3.74%  compress/gzip.(*Writer).Write
+         0     0%   100%  1184.27kB  2.85%  main.main
+         0     0%   100%      513kB  1.23%  runtime.goexit0
+         0     0%   100%  1184.27kB  2.85%  runtime.main
+         0     0%   100%     3078kB  7.41%  runtime.mcall
+         0     0%   100%     3591kB  8.64%  runtime.mstart
+         0     0%   100%     3591kB  8.64%  runtime.mstart0
+         0     0%   100%     3591kB  8.64%  runtime.mstart1
+         0     0%   100%  6669.01kB 16.05%  runtime.newm
+         0     0%   100%     2565kB  6.17%  runtime.park_m
+         0     0%   100%  6669.01kB 16.05%  runtime.resetspinning
+         0     0%   100%  6669.01kB 16.05%  runtime.schedule
+         0     0%   100%  6669.01kB 16.05%  runtime.startm
+         0     0%   100%  6669.01kB 16.05%  runtime.wakep
+         0     0%   100%  1553.21kB  3.74%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1553.21kB  3.74%  runtime/pprof.profileWriter
+         0     0%   100%  1696.28kB  4.08%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit
+         0     0%   100% 29423.96kB 70.81%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2
+         0     0%   100% 29423.96kB 70.81%  siaod-hw4-concmap/internal/concmap.fillPlain
+         0     0%   100% 26271.39kB 63.23%  testing.(*B).launch
+         0     0%   100%  4848.85kB 11.67%  testing.(*B).run1.func1
+         0     0%   100% 31120.24kB 74.90%  testing.(*B).runN
+         0     0%   100%  1184.27kB  2.85%  testing.(*M).Run
+         0     0%   100%  1184.27kB  2.85%  testing.(*M).before
+         0     0%   100%  1184.27kB  2.85%  testing/internal/testdeps.TestDeps.StartCPUProfile

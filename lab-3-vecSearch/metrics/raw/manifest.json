@@ -1,11 +1,11 @@
 {
-  "vectors_n": 100000,
+  "vectors_n": 1000000,
   "dim": 128,
-  "nq": 2000,
+  "nq": 10000,
   "k": 100,
   "seed": 42,
-  "data_path": null,
-  "synthetic_n": 100000,
-  "quick": true,
-  "gt_sec": 1.2617
+  "data_path": "/home/andrew/ITMO/SIAOD/lab-3-vecSearch/data/sift_base.fvecs",
+  "synthetic_n": null,
+  "quick": false,
+  "gt_sec": 45.8131
 }

@@ -1,0 +1,5 @@
+phase	wall_sec
+HNSW add	7.34803
+HNSW search	0.276979
+IVF PQ train+add	11.6766
+IVF PQ search	0.440743

@@ -21,6 +21,11 @@
    - [3.4 Графики: Recall от latency и размера индекса](#34-графики-recall-от-latency-и-размера-индекса)
    - [3.5 Выбор «глобального» компромисса](#35-выбор-глобального-компромисса)
 4. [Профилирование](#4-профилирование)
+   - [4.1 Сценарии и воспроизведение](#41-сценарии-и-воспроизведение)
+   - [4.2 Wall-clock по фазам](#42-wall-clock-по-фазам)
+   - [4.3 Полный хот-пас: cumulative и tottime](#43-полный-хот-пас-cumulative-и-tottime)
+   - [4.4 Сетка cProfile по четырём фазам и pie-chart](#44-сетка-cprofile-по-четырём-фазам-и-pie-chart)
+   - [4.5 Ограничения Python-профиля](#45-ограничения-python-профиля)
 5. [Вывод](#5-вывод)
 
 ---
@@ -63,12 +68,14 @@ $$\text{Recall@}k = \frac{1}{|\mathcal{Q}| \cdot k} \sum_{q \in \mathcal{Q}} \bi
 
 ### 2.1 Датасет и окружение
 
-- **Основной (для финального запуска по заданию):** база дескрипторов **SIFT1M** — `sift_base.fvecs` с [CORPUS TexMex](http://corpus-texmex.irisa.fr/): $N \approx 10^6$, $d = 128$. Скачивание: [`download_data.py`](download_data.py) (формат `.fvecs`, читатель [`io_fvecs.py`](io_fvecs.py)).
-- **Зафиксированные в этом отчёте графики/таблицы:** воспроизводимый **синтетический** корпус $N = 100\,000$, $d = 128$ (режим `--synthetic`), **2000 запросов**, режим решётки **`--quick`**, чтобы можно было закоммитить PNG-билды без гигабайтного дампа (`metrics/raw/` по умолчанию в `.gitignore` репозитория, см. ниже).
+- **Корпус по ТЗ (основная ветка `Makefile`):** набор **SIFT1M** (`sift_base.fvecs`, $N \approx 10^6$, $d = 128$). Описание набора: [CORPUS TexMex](http://corpus-texmex.irisa.fr/). Файл кладётся в `lab-3-vecSearch/data/` скриптом [`download_data.py`](download_data.py): если прямой URL TexMex отвечает **404**, пробуются зеркало **Hugging Face** и архив **`sift.tar.gz`** с **`ftp.irisa.fr`** с извлечением `sift/sift_base.fvecs` (по той же схеме, что в [ann-benchmarks](https://github.com/erikbern/ann-benchmarks)). Это **локальные дескрипторы**; для курсовой формулировки «эмбеддинги» их можно трактовать как точки в $\mathbb{R}^{128}$, что стандартно для ANN-бенчей.
+- **Запросы:** **случайно выбраны из того же множества** векторов-строк базы (**без замены**); по умолчанию $|\mathcal{Q}| = 10\,000$ (команда **`make bench`**, параметр `--nq` в [`run_benchmark.py`](run_benchmark.py)).
+- **Ground truth:** топ-$k$ точных ближайших по $L_2$; по умолчанию $k = 100$ через `IndexFlatL2` (**`make bench`** задаёт `--k 100`).
+- **Отладочный режим без скачивания большого файла:** **`make bench-quick`** — синтетический Gaussian-корпус и урезанная решётка `--quick`; **не** считается эталонным для ТЗ, только для локальной проверки кода и графиков.
 
-**Важно:** для сдачи по формулировке ДЗ стоит отдельно прогнать полный режим без `--quick` на SIFT и **не менее 10 000 запросов** — меняются только параметры строки запуска: `python run_benchmark.py` после `python download_data.py`.
+После успешного **`make artifacts`** параметры эксперимента дублируются в **`metrics/raw/manifest.json`** (число векторов, `nq`, `k`, путь к данным или флаг синтетики).
 
-Локальный `lab-3-vecSearch/.gitignore` удалён: правила добавлены в **корневой** [`.gitignore`](../.gitignore) (`lab-3-vecSearch/data/`, `.venv/`). Общее правило **`metrics/raw/`** по-прежнему исключает сырые CSV/JSON из всех модулей; в репозиторий **специально добавлены** готовые **PNG** профилей и диаграмм в [`metrics/plots/`](metrics/plots/).
+Локально `metrics/raw/` чаще в `.gitignore`; **PNG графиков и профилирования** сохраняют в [`metrics/plots/`](metrics/plots/) из того же пайплайна.
 
 ### 2.2 Код и воспроизводимость
 
@@ -76,18 +83,27 @@ $$\text{Recall@}k = \frac{1}{|\mathcal{Q}| \cdot k} \sum_{q \in \mathcal{Q}} \bi
 |:----------|:-----------|
 | [`run_benchmark.py`](run_benchmark.py) | GT (`IndexFlatL2`), сетки HNSW/IVFPQ/LSH, CSV/TTSV/`summary.json` |
 | [`scripts/export_plots.py`](scripts/export_plots.py) | Scatter-графики Recall ↔ latency/size |
-| [`scripts/profile_hotpath.py`](scripts/profile_hotpath.py) + `cProfile` | Сценарий «типичной» нагрузки для профиля |
-| [`scripts/pstats_top_png.py`](scripts/pstats_top_png.py) | Гистограмма топ-N по cumulative времени |
+| [`scripts/profile_data.py`](scripts/profile_data.py) | Одни и те же правила загрузки: SIFT-префикс, `PROFILE_NQ` случайных запросов из корпуса; fallback Gaussian только если `PROFILE_ALLOW_SYNTHETIC=1` |
+| [`scripts/profile_hotpath.py`](scripts/profile_hotpath.py) | Связный хот-пас под `python -m cProfile` → `metrics/profiles/vec_search.prof` |
+| [`scripts/profile_phases.py`](scripts/profile_phases.py) | Профили по фазам + [`metrics/raw/profile_phase_wall.tsv`](metrics/raw/profile_phase_wall.tsv), [`profile_manifest.txt`](metrics/raw/profile_manifest.txt), бар-chart wall PNG |
+| [`scripts/pstats_util.py`](scripts/pstats_util.py) | Разбор `pstats` (Python 3.12+ совместимо) → строки топа |
+| [`scripts/pstats_top_png.py`](scripts/pstats_top_png.py) | Горизонтальный топ-N: `--metric cum` или `tot` (tottime) |
+| [`scripts/pstats_multi.py`](scripts/pstats_multi.py) | Сводная сетка 2×2 по фазам + «pie» по полному профилю |
 
-Сбор всех артефактов (сырых и графиков) локально:
+Типичный полный пайплайн под ТЗ (нужны скачанные `data/sift_base.fvecs`):
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-make artifacts   # Synthetic 100000 / NQ 2000 см. Makefile
+python download_data.py   # если ещё нет sift_base.fvecs
+make artifacts            # bench (SIFT, nq=10k, k=100, полная решётка) + plots + profile
 ```
 
-Полная сетка на SIFT: `python run_benchmark.py --nq 10000`.
+- **`make bench-quick`** — быстрый синтетический прогон, **не для формулировки ДЗ**.
+- **`make profile PROFILE_MAX_VECTORS=0`** — профилировать на **полном** скачанном файле (долго); по умолчанию в Makefile берётся **первые $2\times10^5$** векторов того же SIFT для ускорения съёмки cProfile при **тех же 10 000 запросах** и $k$.
+- **`make profile PROFILE_ALLOW_SYNTHETIC=1`** — только для машин без датасета (Gaussian), **не** подставлять в отчёт как исполнение п. 1 ТЗ.
+
+Эквивалент вручную: `python run_benchmark.py --data data/sift_base.fvecs --nq 10000 --k 100 --max-vectors 0`.
 
 ---
 
@@ -110,17 +126,15 @@ make artifacts   # Synthetic 100000 / NQ 2000 см. Makefile
 
 ### 3.3 Сводная таблица «лучших» конфигураций по семействам
 
-Для каждого семейства в `metrics/raw/summary.json` (генерируется `make bench`, в git по умолчанию не включается) записан конфиг с **максимальным Recall**, при равенстве — меньший размер индекса и время построения. Цифры в таблице ниже — из прогона `make artifacts` (`N=100000`, `nq=2000`, `k=100`, `--quick`) на машине автора.
+Полный прогон **`make artifacts`** на SIFT1M дал (см. `metrics/raw/manifest.json`: `vectors_n=1000000`, `nq=10000`, `k=100`, `quick=false`) такие лучшие конфигурации из [`metrics/raw/summary.json`](metrics/raw/summary.json):
 
-| Семейство | Recall@100 | Построение, с | Поиск (batch), с | Размер индекса, МБ | Параметры (кратко) |
-|:----------|:----------:|--------------:|-----------------:|-------------------:|:-------------------|
-| **HNSW** | **0.678** | 11.37 | 0.19 | ~68.7 | `M=24`, `efC=120`, `efS=128` |
-| **IVF+PQ** | 0.481 | 1.92 | 0.77 | ~4.0 | `nlist=128`, `m=32`, `nprobe=64` |
-| **LSH** | 0.216 | 0.47 | 0.23 | ~6.4 | `nbits=512` |
+| Семейство | Параметры | Build, с | Search (batch), с | Размер, МБ | Recall@100 |
+|:----------|:----------|---------:|------------------:|-----------:|-----------:|
+| **HNSW** | `M=48, efC=200, efS=256` | 135.54 | 1.825 | 912.1 | **0.9967** |
+| **IVF+PQ** | `nlist=512, m=64, nprobe=64` | 11.27 | 19.18 | 72.4 | 0.9078 |
+| **LSH** | `nbits=512` | 3.42 | 10.95 | 64.3 | 0.4701 |
 
-**Интерпретация (на этом синтетическом прогоне).** HNSW даёт наилучшую полноту при приемлемом поиске, но **дорогое построение** и **крупный индекс**. IVF+PQ — **компактный** индекс и быстрое обучение, но при тех же $N$ и быстрой решётке recall заметно ниже без более тонкого подбора `nlist`/`nprobe`/`m`. LSH на случайных гауссовых векторах показывает **низкий recall** при умеренном размере — ожидаемо для бинарного хэширования без адаптации под распределение.
-
-Для **финального отчёта по заданию** следует перенести ту же таблицу на SIFT1M и 10 000 запросов: ожидается другой абсолютный recall, но **относительный порядок** методов обычно сохраняется (HNSW ≥ IVF+PQ ≥ классический LSH на тех же бюджетах).
+По критерию «только полнота» абсолютный лидер — **HNSW** (`winner_recall_only = 0.996723`).
 
 ### 3.4 Графики: Recall от latency и размера индекса
 
@@ -128,17 +142,17 @@ make artifacts   # Synthetic 100000 / NQ 2000 см. Makefile
 
 ![Recall vs search time](metrics/plots/recall_vs_search_sec.png)
 
-Каждая точка — отдельная конфигурация в `plot_series.tsv`. По оси X — суммарное время поиска по всем запросам батчем; по оси Y — средний Recall@$k$. Виден типичный тренд: **HNSW** и **IVF+PQ** образуют «облака» в верхней полуплоскости recall; **LSH** смещён вниз.
+Построен из `metrics/raw/plot_series.tsv` после **`make bench`** (**`make plots`**). Подпись на PNG задаёт [`Makefile`](Makefile) (`PLOT_TITLE`): там закрепляется **SIFT**, **10 000** запросов и **полная** решётка (без `--quick`). По оси X — суммарное время batched-поиска на всех запросах; по Y — Recall@100. Ожидаемо видны отдельные «облака» методов семейства HNSW / IVFPQ / LSH при различных параметрах.
 
 #### Рисунок 3.2 — Recall@k vs размер сериализованного индекса (МБ)
 
 ![Recall vs index size](metrics/plots/recall_vs_index_mb.png)
 
-IVF+PQ при малых $N$ даёт **наименьший дисковый след** за счёт PQ-кодов; HNSW хранит полные вектора в графе (`IndexHNSWFlat`) и занимает больше места.
+Те же прогоны, что для рис. 3.1. На большом $N$ **IVFPQ** типично «ближе к левому нижнему углу» по размеру при умеренной полноте; **IndexHNSWFlat** дороже по памяти за счёт хранения исходных векторов в структуре графа.
 
 ### 3.5 Выбор «глобального» компромисса
 
-В `metrics/raw/summary.json` дополнительно записан **эвристический** «глобальный» выбор `global_tradeoff_pick`: линейная смесь нормализованных величин (веса: recall 0.4, обратный размер 0.2, обратное время построения 0.2, обратное время поиска 0.2). На синтетическом прогоне она выбрала **IVF+PQ** (`nlist=128`, `m=32`, `nprobe=16`) как компромисс между быстрым поиском и небольшим индексом при **низком** recall — это **не** «лучший по качеству», а ориентир для сценария «ограниченная память + быстрый ответ».
+В `metrics/raw/summary.json` записан **эвристический** выбор **`global_tradeoff_pick`**: линейная смесь нормализованных величин (веса: recall **0.4**, обратный размер индекса **0.2**, обратное время построения **0.2**, обратное время поиска **0.2**). На текущем прогоне выбран **IVF+PQ** с параметрами `nlist=512, m=64, nprobe=16`: `build=11.27s`, `search=4.982s`, `size≈72.4MB`, `recall=0.8745`. Это **не** «лучший по качеству», а компромисс для п. 7 ТЗ.
 
 **Практическая рекомендация:** если критична **полнота** — **HNSW** с увеличением `efSearch` / `M`; если критичны **память и throughput** — **IVF+PQ** с ростом `nprobe` и подбором `nlist` под $N$; **LSH** имеет смысл при жёстких ограничениях на RAM и допустимом ухудшении качества или при специализированных метриках/пайплайнах.
 
@@ -146,32 +160,74 @@ IVF+PQ при малых $N$ даёт **наименьший дисковый с
 
 ## 4. Профилирование
 
-Профилирование в Go-лабораторных опиралось на `pprof` и flamegraph. В Python-стеке с **нативной** `libfaiss` корректный CPU-flamegraph по C++ внутри библиотеки даёт не `cProfile`, а **системный** сэмплер (`perf record`, `Intel VTune` и т.п.). Здесь зафиксирован **доступный без root** ориентир: `python -m cProfile` + визуализация топа cumulative по **Python-оболочке**.
+Цель блока — **набрать столько же визуального материала**, как в Go-лабораторных (несколько PNG и явная трактовка), оставаясь в экосистеме **Python**.
 
-### 4.1 Сценарий профиля
+### 4.1 Сценарии и воспроизведение
 
-Скрипт [`scripts/profile_hotpath.py`](scripts/profile_hotpath.py): построение `IndexHNSWFlat` на 55 000 векторов и `IndexIVFPQ` с обучением, затем batched `search` — типичная смесь «индексация + запрос».
+Единые данные задаёт [`scripts/profile_data.py`](scripts/profile_data.py):
 
-Команда (см. `make profile`):
+- файл **`PROFILE_DATA`** (по умолчанию **`data/sift_base.fvecs`**), переменная **`PROFILE_MAX_VECTORS`** (по умолчанию загружаются **первые 200 000** векторов; **`0`** = читать **весь** файл до конца → долго для cProfile),
+- те же **`PROFILE_NQ = 10 000`** случайных **различных** запросов из загруженного префикса и **`PROFILE_K = 100`** (как в бенче),
+- параметр **`PROFILE_SEED`** согласован с идеей фиксируемой выборки.
 
-```bash
-python -m cProfile -o metrics/profiles/vec_search.prof scripts/profile_hotpath.py
-python scripts/pstats_top_png.py
-```
+Так профилировка **соответствует духу ТЗ по числу запросов и \(k\)**, масштаб корпуса при съёмке cProfile ограничен для разумной длительности (при необходимости отчитываться «на всём миллионе» — см. переменную выше или отдельный `perf`). Режим **`PROFILE_ALLOW_SYNTHETIC=1`** допускает Gaussian без файла данных — **не** использовать в отчёте как выполнение п. 1 ТЗ.
 
-### 4.2 Рисунок 4.1 — Топ функций по cumulative времени (cProfile)
+- **Полный хот-пас** — [`scripts/profile_hotpath.py`](scripts/profile_hotpath.py): последовательно HNSW (add → search), затем IVFPQ (`train`, `add`, `search`). Профиль: **`metrics/profiles/vec_search.prof`**.
+- **По фазам** — [`scripts/profile_phases.py`](scripts/profile_phases.py): профили **`vec_hnsw_add`**, **`vec_hnsw_search`**, **`vec_ivf_train_add`**, **`vec_ivf_search`**, файл [`metrics/raw/profile_manifest.txt`](metrics/raw/profile_manifest.txt).
 
-![CPU profile Python top cumulative](metrics/plots/cpu_profile_python_top.png)
+Команда: **`make profile`** (переменные `PROFILE_*` см. верх [`Makefile`](Makefile)).
 
-**Чтение результата.** Доминируют вызовы вокруг **обёрток FAISS / NumPy** (`swigfaiss`, `PyInit_faiss`, преобразования массивов): фактическое время внутри SIMD/C++ **не раскрывается** как отдельные Python-функции. Для отчёта по «настоящему» flamegraph стоит приложить снимок `perf` (при наличии прав) или скрин профилировщика IDE, указывающий на `faiss::` в стеке.
+### 4.2 Wall-clock по фазам
 
-**Память.** Отдельный heap-профиль не приводился: FAISS аллоцирует крупные буферы в нативной куче; информативнее `tracemalloc` только для чисто Python-кода или `memray` при необходимости.
+Стеном столбики по **`time.perf_counter()`** между теми же фазами, что §4.1 (не смешиваем со значениями **`cumulative`** в текстовом топе **`pstats`**).
+
+**Рисунок 4.1 — [`profile_walltime_phases.png`](metrics/plots/profile_walltime_phases.png)**
+
+![Wall time phases](metrics/plots/profile_walltime_phases.png)
+
+Текущий профиль (SIFT-префикс `PROFILE_MAX_VECTORS=200000`, `PROFILE_NQ=10000`, `PROFILE_K=100`; источник — [`metrics/raw/profile_phase_wall.tsv`](metrics/raw/profile_phase_wall.tsv)) дал:
+
+| Фаза | Wall, с |
+|:-----|--------:|
+| HNSW add | 7.348 |
+| HNSW search | 0.277 |
+| IVF PQ train+add | 11.677 |
+| IVF PQ search | 0.441 |
+
+### 4.3 Полный хот-пас: cumulative и tottime
+
+`cumulative` традиционно главный режим **`cProfile`**; **`tottime`** подсвечивает функции с «толстыми» локальными телами без разворачивания детей (иногда это удобно для понимания, где тормозят обёртки).
+
+**Рисунок 4.2 — топ по cumulative:**
+
+![CPU profile cumulative](metrics/plots/cpu_profile_python_top.png)
+
+**Рисунок 4.3 — топ по tottime:**
+
+![CPU profile tottime](metrics/plots/cpu_profile_python_tot.png)
+
+### 4.4 Сетка cProfile по четырём фазам и pie-chart
+
+**Рисунок 4.4 — 2×2 barh топ-N по каждому отдельному `.prof`** (видно что на **add/train** главный вклад один, на **search** — другие обёртки):
+
+![Phase grid cumulative](metrics/plots/cpu_profile_phases_grid.png)
+
+**Рисунок 4.5 — pie по долям cumulative топа над полным `vec_search.prof`** (оставшаяся часть — **`остальное`** от `stats.total_tt`):
+
+![Pie cumulative](metrics/plots/cpu_profile_top_pie.png)
+
+### 4.5 Ограничения Python-профиля
+
+- Время **внутри `libfaiss` (AVX/SIMD, C++)** отображается как **`built-in method … faiss`** и не раскладывается в «настоящий» flame graph уровня C++ — только из **`perf`/VTune**/символьников библиотеки.
+- **Heap-профиль**: крупная доля памяти в нативной куче; для Python-слоя имеет смысл при необходимости **`memray`** / **`tracemalloc`**, они не включены минимализм этого репо.
+
+Полноценный нативный CPU-flame graph для `libfaiss` лучше брать через **`perf record --call-graph`** (или профилировщик IDE) и хранить отдельно от `cProfile`; здесь главный упор на **повторимые PNG без root**.
 
 ---
 
 ## 5. Вывод
 
-1. Реализован воспроизводимый пайплайн: **выбор запросов**, **точный GT** (`IndexFlatL2`), **три семейства ANN** в FAISS, метрики **Recall@k**, **время построения**, **размер индекса**, **время batched-поиска**.
-2. На зафиксированном синтетическом прогоне ($N=10^5$, $|\mathcal{Q}|=2000$) **наибольший recall** у **HNSW**, **наименьший размер индекса** у **IVF+PQ**, **LSH** проигрывает по полноте при сопоставимой поисковой задержке.
-3. Для соответствия формулировке ДЗ необходим прогон на **SIFT1M** и **≥ 10 000** запросов (без `--quick`), с обновлением таблиц и графиков через `make bench && make plots`.
-4. **Профилирование:** `cProfile` полезен для Python-оверheads; для детального анализа узких мест **Faiss** рекомендуется дополнить нативным CPU-профилем (`perf`).
+1. Пайплайн воспроизводит ТЗ по шагам: **открытый корпус SIFT**, **случайные ≥10 000 запросов из корпуса**, точный **`k = 100`** через **`IndexFlatL2`**, семейства **HNSW / IVF+PQ / LSH** в **FAISS**, метрика **Recall@100**, плюс **время построения**, **размер индекса**, **время batched-поиска** и эвристика **глобального компромисса** в **`summary.json`**.
+2. **Графики** в §3 генерируются после **`make bench && make plots`** на полном режиме (см. `manifest.json`; подпись на PNG задаётся `PLOT_TITLE` в `Makefile`).
+3. **Профилирование** синхронизировано по **`PROFILE_NQ`/`PROFILE_K`** с бенчем; по умолчанию берётся **префикс** SIFT длиной **`PROFILE_MAX_VECTORS`** (ускорение cProfile), при необходимости — **`PROFILE_MAX_VECTORS=0`** для полного файла.
+4. **Отладочный** **`make bench-quick`** остаётся для разработчиков и **не заменяет** обязательный прогон ТЗ по данным препода.

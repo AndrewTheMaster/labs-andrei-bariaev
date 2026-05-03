@@ -69,13 +69,15 @@ profile:
 		>/dev/null
 	go tool pprof -top $(PROF_DIR)/cpu_parallel_get_conc.prof   >$(PROF_DIR)/cpu_parallel_get_conc_top.txt
 	go tool pprof -top $(PROF_DIR)/cpu_parallel_get_plain.prof >$(PROF_DIR)/cpu_parallel_get_plain_top.txt
-	go tool pprof -top $(PROF_DIR)/mem_parallel_get_conc.prof >$(PROF_DIR)/mem_parallel_get_conc_mem_top.txt
-	go tool pprof -top $(PROF_DIR)/mem_parallel_get_plain.prof >$(PROF_DIR)/mem_parallel_get_plain_mem_top.txt
+	go tool pprof -alloc_space -top $(PROF_DIR)/mem_parallel_get_conc.prof  >$(PROF_DIR)/mem_parallel_get_conc_mem_top.txt
+	go tool pprof -alloc_space -top $(PROF_DIR)/mem_parallel_get_plain.prof >$(PROF_DIR)/mem_parallel_get_plain_mem_top.txt
 	@if command -v dot >/dev/null 2>&1; then \
 		go tool pprof -png $(PROF_DIR)/cpu_parallel_get_conc.prof  >$(PLOT_DIR)/pprof_cpu_get_concmap.png 2>/dev/null; \
 		go tool pprof -png $(PROF_DIR)/cpu_parallel_get_plain.prof >$(PLOT_DIR)/pprof_cpu_get_plain.png 2>/dev/null; \
+		go tool pprof -alloc_space -png $(PROF_DIR)/mem_parallel_get_conc.prof  >$(PLOT_DIR)/pprof_mem_get_concmap.png 2>/dev/null; \
+		go tool pprof -alloc_space -png $(PROF_DIR)/mem_parallel_get_plain.prof >$(PLOT_DIR)/pprof_mem_get_plain.png 2>/dev/null; \
 	else \
-		echo "graphviz(dot) отсутствует — см. текстовые top в $(PROF_DIR)"; \
+		echo "graphviz(dot) отсутствует — см. текстовые top и flamegraph *.html в $(PLOT_DIR)"; \
 	fi
 	bash scripts/gen_flamegraphs.sh $(PROF_DIR) $(PLOT_DIR)
 
