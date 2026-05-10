@@ -1,31 +1,29 @@
 File: ir.test
-Build ID: 2a9abbca4c1340c5139993cfbdd58176acb984e2
+Build ID: c04c187aa21bc6f91981449071546a96d38658f2
 Type: alloc_space
-Time: 2026-05-08 19:39:38 MSK
-Showing nodes accounting for 799.70MB, 98.50% of 811.88MB total
-Dropped 24 nodes (cum <= 4.06MB)
+Time: 2026-05-10 20:07:03 MSK
+Showing nodes accounting for 605.89MB, 98.85% of 612.93MB total
+Dropped 35 nodes (cum <= 3.06MB)
       flat  flat%   sum%        cum   cum%
-  420.17MB 51.75% 51.75%   420.17MB 51.75%  siaod-hw5-irindex/internal/ir.msmInDoc
-   92.22MB 11.36% 63.11%    92.22MB 11.36%  siaod-hw5-irindex/internal/ir.subtract (inline)
-   79.71MB  9.82% 72.93%    79.71MB  9.82%  siaod-hw5-irindex/internal/ir.postingsDocSet (inline)
-   45.91MB  5.65% 78.58%    45.91MB  5.65%  siaod-hw5-irindex/internal/ir.allDocs (inline)
-   31.19MB  3.84% 82.43%    31.19MB  3.84%  siaod-hw5-irindex/internal/ir.setToSortedIDs
-   30.27MB  3.73% 86.15%    30.27MB  3.73%  siaod-hw5-irindex/internal/ir.sortedIDsToSet (inline)
-   22.20MB  2.73% 88.89%    22.20MB  2.73%  siaod-hw5-irindex/internal/ir.union (inline)
-   19.12MB  2.36% 91.24%    19.12MB  2.36%  siaod-hw5-irindex/internal/ir.intersect (inline)
-   18.10MB  2.23% 93.47%   499.78MB 61.56%  siaod-hw5-irindex/internal/ir.evalMSM
-   15.75MB  1.94% 95.41%    19.25MB  2.37%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
-   11.50MB  1.42% 96.83%    11.50MB  1.42%  siaod-hw5-irindex/internal/ir.Tokenize
-    9.04MB  1.11% 97.94%     9.04MB  1.11%  siaod-hw5-irindex/internal/ir.intersectSortedSkip
-    4.51MB  0.56% 98.50%     4.51MB  0.56%  runtime.allocm
-         0     0% 98.50%     4.51MB  0.56%  runtime.newm
-         0     0% 98.50%     4.51MB  0.56%  runtime.resetspinning
-         0     0% 98.50%     4.51MB  0.56%  runtime.schedule
-         0     0% 98.50%     4.51MB  0.56%  runtime.startm
-         0     0% 98.50%     4.51MB  0.56%  runtime.wakep
-         0     0% 98.50%   804.70MB 99.12%  siaod-hw5-irindex/internal/ir.BenchmarkQueryEvalMixed.func1
-         0     0% 98.50%   771.45MB 95.02%  siaod-hw5-irindex/internal/ir.Eval
-         0     0% 98.50%    33.25MB  4.10%  siaod-hw5-irindex/internal/ir.fillCorpus
-         0     0% 98.50%   798.15MB 98.31%  testing.(*B).launch
-         0     0% 98.50%     6.55MB  0.81%  testing.(*B).run1.func1
-         0     0% 98.50%   804.70MB 99.12%  testing.(*B).runN
+  502.21MB 81.94% 81.94%   502.21MB 81.94%  siaod-hw5-irindex/internal/ir.msmInDoc
+   33.69MB  5.50% 87.43%    33.69MB  5.50%  siaod-hw5-irindex/internal/ir.postingDocIDs (inline)
+   18.09MB  2.95% 90.38%    18.09MB  2.95%  siaod-hw5-irindex/internal/ir.intersectSortedSkip
+   12.72MB  2.07% 92.46%    16.22MB  2.65%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
+   11.58MB  1.89% 94.35%    11.58MB  1.89%  siaod-hw5-irindex/internal/ir.unionSorted
+   11.09MB  1.81% 96.15%    11.09MB  1.81%  siaod-hw5-irindex/internal/ir.subtractSorted
+    6.02MB  0.98% 97.14%   532.87MB 86.94%  siaod-hw5-irindex/internal/ir.evalMSM
+    4.01MB  0.65% 97.79%     4.01MB  0.65%  runtime.allocm
+       4MB  0.65% 98.44%        4MB  0.65%  siaod-hw5-irindex/internal/ir.Tokenize
+    2.50MB  0.41% 98.85%     3.50MB  0.57%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
+         0     0% 98.85%     4.01MB  0.65%  runtime.newm
+         0     0% 98.85%     4.01MB  0.65%  runtime.resetspinning
+         0     0% 98.85%     4.01MB  0.65%  runtime.schedule
+         0     0% 98.85%     4.01MB  0.65%  runtime.startm
+         0     0% 98.85%     4.01MB  0.65%  runtime.wakep
+         0     0% 98.85%   605.38MB 98.77%  siaod-hw5-irindex/internal/ir.BenchmarkQueryEvalMixed.func1
+         0     0% 98.85%   583.17MB 95.14%  siaod-hw5-irindex/internal/ir.Eval (inline)
+         0     0% 98.85%   583.17MB 95.14%  siaod-hw5-irindex/internal/ir.eval
+         0     0% 98.85%    22.22MB  3.62%  siaod-hw5-irindex/internal/ir.fillCorpus
+         0     0% 98.85%   599.30MB 97.78%  testing.(*B).launch
+         0     0% 98.85%     6.08MB  0.99%  testing.(*B).run1.func1
+         0     0% 98.85%   605.38MB 98.77%  testing.(*B).runN

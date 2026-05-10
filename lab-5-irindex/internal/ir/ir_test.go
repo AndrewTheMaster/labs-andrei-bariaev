@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -61,7 +62,7 @@ func TestADJ(t *testing.T) {
 }
 
 func contains(ms MatchSet, id uint32) bool {
-	_, ok := ms[id]
+	_, ok := slices.BinarySearch(ms, id)
 	return ok
 }
 

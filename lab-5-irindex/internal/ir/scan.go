@@ -2,11 +2,14 @@ package ir
 
 // SlowEval — эталон без индекса: прямой скан токенов документа (для верификации/бенч baseline).
 func SlowEval(ix *InvIndex, n Node) MatchSet {
-	out := make(MatchSet)
+	var out MatchSet
 	for _, d := range ix.Docs {
 		if slowEvalDoc(d, n) {
-			out[d.ID] = struct{}{}
+			out = append(out, d.ID)
 		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

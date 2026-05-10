@@ -14,10 +14,9 @@ type Scored struct {
 func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Scored {
 	if len(queryTerms) == 0 {
 		out := make([]Scored, 0, len(cand))
-		for id := range cand {
+		for _, id := range cand {
 			out = append(out, Scored{DocID: id})
 		}
-		sort.Slice(out, func(i, j int) bool { return out[i].DocID < out[j].DocID })
 		return out
 	}
 	N := float64(ix.NumDocs())
@@ -46,7 +45,7 @@ func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Sco
 	}
 
 	out := make([]Scored, 0, len(cand))
-	for id := range cand {
+	for _, id := range cand {
 		d := ix.Docs[id]
 		Ld := float64(len(d.Tokens))
 		score := 0.0

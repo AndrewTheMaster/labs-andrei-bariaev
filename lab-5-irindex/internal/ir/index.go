@@ -16,6 +16,8 @@ type Doc struct {
 type InvIndex struct {
 	Docs     []Doc
 	postings map[string][]posting
+	// allIDsBuf ленивая последовательность [0 .. NumDocs-1] для дополнений NOT без аллокаций на запросе.
+	allIDsBuf []uint32
 }
 
 func NewIndex() *InvIndex {
@@ -49,4 +51,17 @@ func (ix *InvIndex) Postings(tok string) []posting {
 
 func (ix *InvIndex) df(tok string) int {
 	return len(ix.postings[tok])
+}
+
+// allDocIDs возвращает [0, 1, …, NumDocs−1]; буфер пересоздаётся только при изменении числа документов.
+func (ix *InvIndex) allDocIDs() []uint32 {
+	n := ix.NumDocs()
+	if len(ix.allIDsBuf) == n {
+		return ix.allIDsBuf
+	}
+	ix.allIDsBuf = make([]uint32, n)
+	for i := range ix.allIDsBuf {
+		ix.allIDsBuf[i] = uint32(i)
+	}
+	return ix.allIDsBuf
 }

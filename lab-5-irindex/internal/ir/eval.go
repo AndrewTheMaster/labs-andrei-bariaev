@@ -1,53 +1,18 @@
 package ir
 
-import "sort"
+import "slices"
 
-// MatchSet — множество ID документов, удовлетворяющих запросу.
-type MatchSet map[uint32]struct{}
+// MatchSet — отсортированный по возрастанию массив уникальных ID документов.
+type MatchSet []uint32
 
-func allDocs(ix *InvIndex) MatchSet {
-	out := make(MatchSet, ix.NumDocs())
-	for i := 0; i < ix.NumDocs(); i++ {
-		out[uint32(i)] = struct{}{}
-	}
-	return out
-}
-
-func postingsDocSet(ix *InvIndex, term string) MatchSet {
+func postingDocIDs(ix *InvIndex, term string) []uint32 {
 	ps := ix.Postings(term)
-	out := make(MatchSet, len(ps))
-	for _, p := range ps {
-		out[p.DocID] = struct{}{}
+	if len(ps) == 0 {
+		return nil
 	}
-	return out
-}
-
-func intersect(a, b MatchSet) MatchSet {
-	if len(a) > len(b) {
-		a, b = b, a
-	}
-	out := make(MatchSet)
-	for id := range a {
-		if _, ok := b[id]; ok {
-			out[id] = struct{}{}
-		}
-	}
-	return out
-}
-
-func setToSortedIDs(s MatchSet) []uint32 {
-	out := make([]uint32, 0, len(s))
-	for id := range s {
-		out = append(out, id)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out
-}
-
-func sortedIDsToSet(ids []uint32) MatchSet {
-	out := make(MatchSet, len(ids))
-	for _, id := range ids {
-		out[id] = struct{}{}
+	out := make([]uint32, len(ps))
+	for i := range ps {
+		out[i] = ps[i].DocID
 	}
 	return out
 }
@@ -101,50 +66,86 @@ func intersectSortedSkip(a, b []uint32) []uint32 {
 	return out
 }
 
-func union(a, b MatchSet) MatchSet {
-	out := make(MatchSet, len(a)+len(b))
-	for id := range a {
-		out[id] = struct{}{}
+// unionSorted — объединение двух возрастающих уникальных списков без map.
+func unionSorted(a, b []uint32) []uint32 {
+	if len(a) == 0 {
+		return slices.Clone(b)
 	}
-	for id := range b {
-		out[id] = struct{}{}
+	if len(b) == 0 {
+		return slices.Clone(a)
 	}
+	out := make([]uint32, 0, len(a)+len(b))
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		ai, bj := a[i], b[j]
+		if ai < bj {
+			out = append(out, ai)
+			i++
+		} else if bj < ai {
+			out = append(out, bj)
+			j++
+		} else {
+			out = append(out, ai)
+			i++
+			j++
+		}
+	}
+	out = append(out, a[i:]...)
+	out = append(out, b[j:]...)
 	return out
 }
 
-func subtract(a, b MatchSet) MatchSet {
-	out := make(MatchSet)
-	for id := range a {
-		if _, ok := b[id]; !ok {
-			out[id] = struct{}{}
+// subtractSorted возвращает a \\ b для возрастающих уникальных срезов.
+func subtractSorted(a, minus []uint32) []uint32 {
+	if len(minus) == 0 || len(a) == 0 {
+		return slices.Clone(a)
+	}
+	out := make([]uint32, 0, len(a))
+	i, j := 0, 0
+	for i < len(a) && j < len(minus) {
+		ai, bj := a[i], minus[j]
+		if ai < bj {
+			out = append(out, ai)
+			i++
+		} else if ai > bj {
+			j++
+		} else {
+			i++
+			j++
 		}
+	}
+	out = append(out, a[i:]...)
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
 
 // Eval выполняет булеву модель документов над индексом.
 func Eval(ix *InvIndex, n Node) MatchSet {
+	return eval(ix, n)
+}
+
+func eval(ix *InvIndex, n Node) []uint32 {
 	switch t := n.(type) {
 	case *Term:
-		return postingsDocSet(ix, t.Lex)
+		return postingDocIDs(ix, t.Lex)
 	case *Not:
-		return subtract(allDocs(ix), Eval(ix, t.Child))
+		return subtractSorted(ix.allDocIDs(), eval(ix, t.Child))
 	case *And:
 		if len(t.Children) == 0 {
-			return MatchSet{}
+			return nil
 		}
-		ds := Eval(ix, t.Children[0])
-		sorted := setToSortedIDs(ds)
+		sorted := eval(ix, t.Children[0])
 		for i := 1; i < len(t.Children); i++ {
-			right := setToSortedIDs(Eval(ix, t.Children[i]))
-			sorted = intersectSortedSkip(sorted, right)
+			sorted = intersectSortedSkip(sorted, eval(ix, t.Children[i]))
 			if len(sorted) == 0 {
-				return MatchSet{}
+				return nil
 			}
 		}
-		return sortedIDsToSet(sorted)
+		return sorted
 	case *Or:
-		return union(Eval(ix, t.Left), Eval(ix, t.Right))
+		return unionSorted(eval(ix, t.Left), eval(ix, t.Right))
 	case *Near:
 		return evalNear(ix, t.K, t.A, t.B)
 	case *Adj:
@@ -156,17 +157,17 @@ func Eval(ix *InvIndex, n Node) MatchSet {
 	case *EdgeEnd:
 		return edgeEnd(ix, t.Lex)
 	default:
-		return MatchSet{}
+		return nil
 	}
 }
 
-func evalNear(ix *InvIndex, k int, a, b string) MatchSet {
+func evalNear(ix *InvIndex, k int, a, b string) []uint32 {
 	if k < 0 {
 		k = 0
 	}
 	da := ix.Postings(a)
 	db := ix.Postings(b)
-	out := MatchSet{}
+	var out []uint32
 
 	i, j := 0, 0
 	for i < len(da) && j < len(db) {
@@ -178,11 +179,101 @@ func evalNear(ix *InvIndex, k int, a, b string) MatchSet {
 		default:
 			doc := da[i].DocID
 			if positionsNear(da[i].Poss, db[j].Poss, k) {
-				out[doc] = struct{}{}
+				out = append(out, doc)
 			}
 			i++
 			j++
 		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func evalAdj(ix *InvIndex, a, b string) []uint32 {
+	da := ix.Postings(a)
+	db := ix.Postings(b)
+	var out []uint32
+	i, j := 0, 0
+	for i < len(da) && j < len(db) {
+		switch {
+		case da[i].DocID < db[j].DocID:
+			i++
+		case da[i].DocID > db[j].DocID:
+			j++
+		default:
+			doc := da[i].DocID
+			if positionsAdj(da[i].Poss, db[j].Poss) {
+				out = append(out, doc)
+			}
+			i++
+			j++
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func edgeStart(ix *InvIndex, term string) []uint32 {
+	ps := ix.Postings(term)
+	var out []uint32
+	for _, p := range ps {
+		if len(p.Poss) > 0 && p.Poss[0] == 0 {
+			out = append(out, p.DocID)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func edgeEnd(ix *InvIndex, term string) []uint32 {
+	var out []uint32
+	for _, p := range ix.Postings(term) {
+		last := len(ix.Docs[p.DocID].Tokens) - 1
+		if last < 0 {
+			continue
+		}
+		lp := uint32(last)
+		for _, pos := range p.Poss {
+			if pos == lp {
+				out = append(out, p.DocID)
+				break
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func evalMSM(ix *InvIndex, w int, terms []string) []uint32 {
+	if len(terms) == 0 {
+		return slices.Clone(ix.allDocIDs())
+	}
+	ids := postingDocIDs(ix, terms[0])
+	for i := 1; i < len(terms); i++ {
+		ids = intersectSortedSkip(ids, postingDocIDs(ix, terms[i]))
+		if len(ids) == 0 {
+			return nil
+		}
+	}
+	if w < 0 {
+		w = 0
+	}
+	out := make([]uint32, 0, len(ids))
+	for _, id := range ids {
+		if msmInDoc(ix.Docs[id], terms, w) {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
@@ -221,81 +312,6 @@ func positionsAdj(pa, pb []uint32) bool {
 		i++
 	}
 	return false
-}
-
-func evalAdj(ix *InvIndex, a, b string) MatchSet {
-	da := ix.Postings(a)
-	db := ix.Postings(b)
-	out := MatchSet{}
-	i, j := 0, 0
-	for i < len(da) && j < len(db) {
-		switch {
-		case da[i].DocID < db[j].DocID:
-			i++
-		case da[i].DocID > db[j].DocID:
-			j++
-		default:
-			doc := da[i].DocID
-			if positionsAdj(da[i].Poss, db[j].Poss) {
-				out[doc] = struct{}{}
-			}
-			i++
-			j++
-		}
-	}
-	return out
-}
-
-func edgeStart(ix *InvIndex, term string) MatchSet {
-	ps := ix.Postings(term)
-	out := MatchSet{}
-	for _, p := range ps {
-		if len(p.Poss) > 0 && p.Poss[0] == 0 {
-			out[p.DocID] = struct{}{}
-		}
-	}
-	return out
-}
-
-func edgeEnd(ix *InvIndex, term string) MatchSet {
-	out := MatchSet{}
-	for _, p := range ix.Postings(term) {
-		last := len(ix.Docs[p.DocID].Tokens) - 1
-		if last < 0 {
-			continue
-		}
-		lp := uint32(last)
-		for _, pos := range p.Poss {
-			if pos == lp {
-				out[p.DocID] = struct{}{}
-				break
-			}
-		}
-	}
-	return out
-}
-
-func evalMSM(ix *InvIndex, w int, terms []string) MatchSet {
-	if len(terms) == 0 {
-		return allDocs(ix)
-	}
-	ds := postingsDocSet(ix, terms[0])
-	for i := 1; i < len(terms); i++ {
-		ds = intersect(ds, postingsDocSet(ix, terms[i]))
-		if len(ds) == 0 {
-			return ds
-		}
-	}
-	if w < 0 {
-		w = 0
-	}
-	out := MatchSet{}
-	for id := range ds {
-		if msmInDoc(ix.Docs[id], terms, w) {
-			out[id] = struct{}{}
-		}
-	}
-	return out
 }
 
 func msmInDoc(d Doc, terms []string, w int) bool {

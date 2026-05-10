@@ -1,19 +1,26 @@
 File: ir.test
-Build ID: 2a9abbca4c1340c5139993cfbdd58176acb984e2
+Build ID: c04c187aa21bc6f91981449071546a96d38658f2
 Type: alloc_space
-Time: 2026-05-08 19:39:40 MSK
-Showing nodes accounting for 1.12GB, 99.25% of 1.12GB total
-Dropped 35 nodes (cum <= 0.01GB)
+Time: 2026-05-10 20:07:04 MSK
+Showing nodes accounting for 626.22MB, 99.19% of 631.30MB total
+Dropped 40 nodes (cum <= 3.16MB)
       flat  flat%   sum%        cum   cum%
-    0.62GB 55.19% 55.19%     0.75GB 66.66%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
-    0.29GB 25.42% 80.61%     0.29GB 25.42%  siaod-hw5-irindex/internal/ir.Tokenize
-    0.09GB  8.08% 88.69%     0.13GB 11.47%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
-    0.06GB  5.73% 94.43%     0.06GB  5.73%  strings.(*Builder).WriteString (inline)
-    0.04GB  3.39% 97.82%     0.04GB  3.39%  internal/reflectlite.Swapper
-    0.02GB  1.43% 99.25%     0.02GB  1.43%  strings.(*Builder).WriteByte (inline)
-         0     0% 99.25%     1.12GB 99.25%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
-         0     0% 99.25%     1.12GB 99.25%  siaod-hw5-irindex/internal/ir.fillCorpus
-         0     0% 99.25%     0.04GB  3.39%  sort.Slice
-         0     0% 99.25%     1.11GB 98.33%  testing.(*B).launch
-         0     0% 99.25%     0.01GB  0.92%  testing.(*B).run1.func1
-         0     0% 99.25%     1.12GB 99.25%  testing.(*B).runN
+  347.15MB 54.99% 54.99%   417.15MB 66.08%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
+  171.56MB 27.17% 82.16%   171.56MB 27.17%  siaod-hw5-irindex/internal/ir.Tokenize
+   43.50MB  6.89% 89.05%       70MB 11.09%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
+   26.50MB  4.20% 93.25%    26.50MB  4.20%  internal/reflectlite.Swapper
+   25.50MB  4.04% 97.29%    25.50MB  4.04%  strings.(*Builder).WriteString (inline)
+    7.50MB  1.19% 98.48%     7.50MB  1.19%  strings.(*Builder).WriteByte (inline)
+    4.51MB  0.71% 99.19%     4.51MB  0.71%  runtime.allocm
+         0     0% 99.19%     4.51MB  0.71%  runtime.newm
+         0     0% 99.19%     4.51MB  0.71%  runtime.resetspinning
+         0     0% 99.19%     4.51MB  0.71%  runtime.schedule
+         0     0% 99.19%     4.51MB  0.71%  runtime.startm
+         0     0% 99.19%     4.51MB  0.71%  runtime.wakep
+         0     0% 99.19%     3.41MB  0.54%  runtime/pprof.profileWriter
+         0     0% 99.19%   621.71MB 98.48%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
+         0     0% 99.19%   621.71MB 98.48%  siaod-hw5-irindex/internal/ir.fillCorpus
+         0     0% 99.19%    26.50MB  4.20%  sort.Slice
+         0     0% 99.19%   615.64MB 97.52%  testing.(*B).launch
+         0     0% 99.19%     6.07MB  0.96%  testing.(*B).run1.func1
+         0     0% 99.19%   621.71MB 98.48%  testing.(*B).runN
