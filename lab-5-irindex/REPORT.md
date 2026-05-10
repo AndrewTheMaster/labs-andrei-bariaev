@@ -46,25 +46,6 @@
 | [`internal/ir/search.go`](internal/ir/search.go) | `SearchBoolEval`, `SearchBM25` |
 | [`internal/ir/storage.go`](internal/ir/storage.go) | сериализация на диск (`SaveCompressed`), mmap-открытие (`OpenMMapIndex`), декодирование постингов по терму |
 
-### Примеры синтаксиса
-
-```text
-alpha AND beta
-(alpha OR gamma) AND NOT delta
-NEAR ( 3 , hello , world )
-ADJ ( hello , world )
-FIRST(hello) AND LAST(planet)
-EDGE_START(hello) AND EDGE_END(planet)
-```
-
-Приоритет: **`not`** выше, чем **`and`** и **`or`**; **`and`** сильнее **`or`** (как в типичных DSL). Скобки задают явный порядок.
-
-### BM25
-
-Используются стандартные параметры `k1`, `b` (передаются в `SearchBM25`). Для каждого кандидата считается сумма вкладов по терминам из `PositiveTerms(ast)`; при равенстве оценок — разрешение по возрастанию `DocID`.
-
----
-
 ## 3. Методика бенчмарков
 
 Команды ([`Makefile`](Makefile)):
