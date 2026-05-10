@@ -1,5 +1,7 @@
 package ir
 
+import "sort"
+
 // MatchSet — множество ID документов, удовлетворяющих запросу.
 type MatchSet map[uint32]struct{}
 
@@ -28,6 +30,72 @@ func intersect(a, b MatchSet) MatchSet {
 	for id := range a {
 		if _, ok := b[id]; ok {
 			out[id] = struct{}{}
+		}
+	}
+	return out
+}
+
+func setToSortedIDs(s MatchSet) []uint32 {
+	out := make([]uint32, 0, len(s))
+	for id := range s {
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func sortedIDsToSet(ids []uint32) MatchSet {
+	out := make(MatchSet, len(ids))
+	for _, id := range ids {
+		out[id] = struct{}{}
+	}
+	return out
+}
+
+// intersectSortedSkip: пересечение отсортированных docID с виртуальными skip-прыжками.
+// Шаг берется как floor(sqrt(n)); дополнительных структур в памяти не создается.
+func intersectSortedSkip(a, b []uint32) []uint32 {
+	if len(a) == 0 || len(b) == 0 {
+		return nil
+	}
+	out := make([]uint32, 0, min(len(a), len(b)))
+	stepA := 1
+	for stepA*stepA < len(a) {
+		stepA++
+	}
+	stepB := 1
+	for stepB*stepB < len(b) {
+		stepB++
+	}
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		ai, bj := a[i], b[j]
+		if ai == bj {
+			out = append(out, ai)
+			i++
+			j++
+			continue
+		}
+		if ai < bj {
+			next := i + stepA
+			if next < len(a) && a[next] <= bj {
+				for next < len(a) && a[next] <= bj {
+					i = next
+					next += stepA
+				}
+			} else {
+				i++
+			}
+			continue
+		}
+		next := j + stepB
+		if next < len(b) && b[next] <= ai {
+			for next < len(b) && b[next] <= ai {
+				j = next
+				next += stepB
+			}
+		} else {
+			j++
 		}
 	}
 	return out
@@ -66,14 +134,21 @@ func Eval(ix *InvIndex, n Node) MatchSet {
 			return MatchSet{}
 		}
 		ds := Eval(ix, t.Children[0])
+		sorted := setToSortedIDs(ds)
 		for i := 1; i < len(t.Children); i++ {
-			ds = intersect(ds, Eval(ix, t.Children[i]))
+			right := setToSortedIDs(Eval(ix, t.Children[i]))
+			sorted = intersectSortedSkip(sorted, right)
+			if len(sorted) == 0 {
+				return MatchSet{}
+			}
 		}
-		return ds
+		return sortedIDsToSet(sorted)
 	case *Or:
 		return union(Eval(ix, t.Left), Eval(ix, t.Right))
 	case *Near:
 		return evalNear(ix, t.K, t.A, t.B)
+	case *Adj:
+		return evalAdj(ix, t.A, t.B)
 	case *MSM:
 		return evalMSM(ix, t.W, t.Terms)
 	case *EdgeStart:
@@ -113,19 +188,62 @@ func evalNear(ix *InvIndex, k int, a, b string) MatchSet {
 }
 
 func positionsNear(pa, pb []uint32, k int) bool {
-	for _, x := range pa {
-		// два указателя по отсортированным позициям
-		for _, y := range pb {
-			diff := int(x) - int(y)
-			if diff < 0 {
-				diff = -diff
-			}
-			if diff <= k {
-				return true
-			}
+	i, j := 0, 0
+	for i < len(pa) && j < len(pb) {
+		xa, xb := pa[i], pb[j]
+		diff := int(xa) - int(xb)
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff <= k {
+			return true
+		}
+		if xa < xb {
+			i++
+		} else {
+			j++
 		}
 	}
 	return false
+}
+
+func positionsAdj(pa, pb []uint32) bool {
+	i, j := 0, 0
+	for i < len(pa) && j < len(pb) {
+		a, b := pa[i], pb[j]
+		if b == a+1 {
+			return true
+		}
+		if b <= a {
+			j++
+			continue
+		}
+		i++
+	}
+	return false
+}
+
+func evalAdj(ix *InvIndex, a, b string) MatchSet {
+	da := ix.Postings(a)
+	db := ix.Postings(b)
+	out := MatchSet{}
+	i, j := 0, 0
+	for i < len(da) && j < len(db) {
+		switch {
+		case da[i].DocID < db[j].DocID:
+			i++
+		case da[i].DocID > db[j].DocID:
+			j++
+		default:
+			doc := da[i].DocID
+			if positionsAdj(da[i].Poss, db[j].Poss) {
+				out[doc] = struct{}{}
+			}
+			i++
+			j++
+		}
+	}
+	return out
 }
 
 func edgeStart(ix *InvIndex, term string) MatchSet {

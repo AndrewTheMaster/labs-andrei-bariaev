@@ -36,6 +36,13 @@ type Near struct {
 
 func (*Near) ast() {}
 
+// Adj — строгое соседство: B идет сразу после A (эквивалент directed NEAR/1).
+type Adj struct {
+	A, B string
+}
+
+func (*Adj) ast() {}
+
 // MSM — все лексемы встречаются в окне длины ≤ W (по индексам токенов, включительно).
 type MSM struct {
 	W     int

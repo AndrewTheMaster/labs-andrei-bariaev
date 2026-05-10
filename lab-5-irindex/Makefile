@@ -30,6 +30,10 @@ collect:
 	    sub(/^corp/, "", tail); corpus=tail+0; mode="build"; \
 	  } else if (bench == "BenchmarkQueryEvalMixed") { \
 	    split(tail, u, "_"); mode=u[1]; corpus=u[2]+0; \
+	  } else if (bench == "BenchmarkQueryAdjNear") { \
+	    split(tail, u, "_"); \
+	    if (length(u) < 3) next; \
+	    mode=u[1] "_" u[2]; corpus=u[3]+0; \
 	  } else next; \
 	  iters=$$2; ns=0; bpb=0; \
 	  for (i=2; i<=NF; i++) { \

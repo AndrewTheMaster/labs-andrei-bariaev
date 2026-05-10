@@ -24,6 +24,10 @@ func PositiveTerms(n Node) []string {
 			if !neg {
 				out = append(out, t.A, t.B)
 			}
+		case *Adj:
+			if !neg {
+				out = append(out, t.A, t.B)
+			}
 		case *MSM:
 			if !neg {
 				out = append(out, t.Terms...)

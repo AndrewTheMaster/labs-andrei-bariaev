@@ -1,27 +1,19 @@
 File: ir.test
-Build ID: 95c752b3aefaa1722916923522f50542b7f3ac8d
+Build ID: 2a9abbca4c1340c5139993cfbdd58176acb984e2
 Type: alloc_space
-Time: 2026-05-02 18:04:58 MSK
-Showing nodes accounting for 576.87MB, 99.44% of 580.12MB total
-Dropped 35 nodes (cum <= 2.90MB)
+Time: 2026-05-08 19:39:40 MSK
+Showing nodes accounting for 1.12GB, 99.25% of 1.12GB total
+Dropped 35 nodes (cum <= 0.01GB)
       flat  flat%   sum%        cum   cum%
-  316.81MB 54.61% 54.61%   389.32MB 67.11%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
-  149.55MB 25.78% 80.39%   149.55MB 25.78%  siaod-hw5-irindex/internal/ir.Tokenize
-      46MB  7.93% 88.32%    72.50MB 12.50%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
-      28MB  4.83% 93.15%       28MB  4.83%  strings.(*Builder).WriteString (inline)
-   26.50MB  4.57% 97.72%    26.50MB  4.57%  internal/reflectlite.Swapper
-    5.01MB  0.86% 98.58%     5.51MB  0.95%  runtime.allocm
-       5MB  0.86% 99.44%        5MB  0.86%  strings.(*Builder).WriteByte (inline)
-         0     0% 99.44%     4.01MB  0.69%  runtime.mcall
-         0     0% 99.44%     5.51MB  0.95%  runtime.newm
-         0     0% 99.44%     4.01MB  0.69%  runtime.park_m
-         0     0% 99.44%     5.51MB  0.95%  runtime.resetspinning
-         0     0% 99.44%     5.51MB  0.95%  runtime.schedule
-         0     0% 99.44%     5.51MB  0.95%  runtime.startm
-         0     0% 99.44%     5.51MB  0.95%  runtime.wakep
-         0     0% 99.44%   571.86MB 98.58%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
-         0     0% 99.44%   571.86MB 98.58%  siaod-hw5-irindex/internal/ir.fillCorpus
-         0     0% 99.44%    26.50MB  4.57%  sort.Slice
-         0     0% 99.44%   559.84MB 96.50%  testing.(*B).launch
-         0     0% 99.44%    12.54MB  2.16%  testing.(*B).run1.func1
-         0     0% 99.44%   572.38MB 98.67%  testing.(*B).runN
+    0.62GB 55.19% 55.19%     0.75GB 66.66%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
+    0.29GB 25.42% 80.61%     0.29GB 25.42%  siaod-hw5-irindex/internal/ir.Tokenize
+    0.09GB  8.08% 88.69%     0.13GB 11.47%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
+    0.06GB  5.73% 94.43%     0.06GB  5.73%  strings.(*Builder).WriteString (inline)
+    0.04GB  3.39% 97.82%     0.04GB  3.39%  internal/reflectlite.Swapper
+    0.02GB  1.43% 99.25%     0.02GB  1.43%  strings.(*Builder).WriteByte (inline)
+         0     0% 99.25%     1.12GB 99.25%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
+         0     0% 99.25%     1.12GB 99.25%  siaod-hw5-irindex/internal/ir.fillCorpus
+         0     0% 99.25%     0.04GB  3.39%  sort.Slice
+         0     0% 99.25%     1.11GB 98.33%  testing.(*B).launch
+         0     0% 99.25%     0.01GB  0.92%  testing.(*B).run1.func1
+         0     0% 99.25%     1.12GB 99.25%  testing.(*B).runN

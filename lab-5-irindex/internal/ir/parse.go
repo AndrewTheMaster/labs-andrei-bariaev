@@ -19,6 +19,7 @@ const (
 	tkOR
 	tkNOT
 	tkNEAR
+	tkADJ
 	tkMSM
 	tkFIRST
 	tkLAST // границы документа (edge): LAST(w), синоним edge_end(w); FIRST(w), синоним edge_start(w)
@@ -90,6 +91,8 @@ func (l *lexer) next() {
 			l.tok = token{kind: tkNOT, lit: lit}
 		case "near":
 			l.tok = token{kind: tkNEAR, lit: lit}
+		case "adj":
+			l.tok = token{kind: tkADJ, lit: lit}
 		case "msm":
 			l.tok = token{kind: tkMSM, lit: lit}
 		case "first", "edge_start":
@@ -204,6 +207,31 @@ func (p *parser) parsePrimary() Node {
 		}
 		p.lex.next()
 		return &Near{K: k, A: a, B: b}
+	case tkADJ:
+		p.lex.next()
+		if p.lex.tok.kind != tkLP {
+			return p.failf("ADJ ждёт '('")
+		}
+		p.lex.next()
+		if p.lex.tok.kind != tkIdent {
+			return p.failf("ADJ: первый термин")
+		}
+		a := p.lex.tok.lit
+		p.lex.next()
+		if p.lex.tok.kind != tkComma {
+			return p.failf("ADJ ждёт ',' между терминами")
+		}
+		p.lex.next()
+		if p.lex.tok.kind != tkIdent {
+			return p.failf("ADJ: второй термин")
+		}
+		b := p.lex.tok.lit
+		p.lex.next()
+		if p.lex.tok.kind != tkRP {
+			return p.failf("ADJ ждёт ')'")
+		}
+		p.lex.next()
+		return &Adj{A: a, B: b}
 	case tkMSM:
 		p.lex.next()
 		if p.lex.tok.kind != tkLP {

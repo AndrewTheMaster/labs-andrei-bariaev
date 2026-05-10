@@ -36,6 +36,8 @@ func slowEvalDoc(d Doc, n Node) bool {
 		return slowEvalDoc(d, t.Left) || slowEvalDoc(d, t.Right)
 	case *Near:
 		return slowNearDoc(d, t.K, t.A, t.B)
+	case *Adj:
+		return slowAdjDoc(d, t.A, t.B)
 	case *MSM:
 		return msmInDoc(d, t.Terms, t.W)
 	case *EdgeStart:
@@ -62,4 +64,13 @@ func slowNearDoc(d Doc, k int, a, b string) bool {
 		}
 	}
 	return positionsNear(pa, pb, k)
+}
+
+func slowAdjDoc(d Doc, a, b string) bool {
+	for i := 0; i+1 < len(d.Tokens); i++ {
+		if d.Tokens[i] == a && d.Tokens[i+1] == b {
+			return true
+		}
+	}
+	return false
 }

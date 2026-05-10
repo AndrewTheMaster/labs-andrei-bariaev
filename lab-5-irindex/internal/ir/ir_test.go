@@ -1,8 +1,11 @@
 package ir
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,6 +36,27 @@ func TestNearAndNotEdge(t *testing.T) {
 	}
 	if len(fast) != 1 || !contains(fast, 0) {
 		t.Fatalf("expected exactly doc 0 hit, got %#v", fast)
+	}
+}
+
+func TestADJ(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{
+		"alpha beta gamma",
+		"beta alpha gamma",
+		"alpha x beta",
+	})
+	n, err := Parse(`ADJ(alpha, beta)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := Eval(ix, n)
+	slow := SlowEval(ix, n)
+	if fmt.Sprint(got) != fmt.Sprint(slow) {
+		t.Fatalf("ADJ index vs slow mismatch: %v vs %v", got, slow)
+	}
+	if len(got) != 1 || !contains(got, 0) {
+		t.Fatalf("ADJ(alpha,beta) expected {0}, got %#v", got)
 	}
 }
 
@@ -168,5 +192,141 @@ func TestBM25Ordering(t *testing.T) {
 		if res[i-1].Score < res[i].Score {
 			t.Fatalf("BM25 не упорядочен по убыванию на %d: %v < %v", i, res[i-1].Score, res[i].Score)
 		}
+	}
+}
+
+func TestCompressedMMapRoundtrip(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{
+		"alpha beta gamma",
+		"beta gamma gamma",
+		"delta alpha",
+	})
+	tmp := filepath.Join(t.TempDir(), "index.irx")
+	if err := SaveCompressed(ix, tmp); err != nil {
+		t.Fatal(err)
+	}
+	mi, err := OpenMMapIndex(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mi.Close()
+
+	if mi.NumDocs() != ix.NumDocs() {
+		t.Fatalf("num docs mismatch: %d vs %d", mi.NumDocs(), ix.NumDocs())
+	}
+	for _, term := range []string{"alpha", "beta", "gamma", "delta"} {
+		got, err := mi.Postings(term)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := ix.Postings(term)
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("postings mismatch term=%q: got=%v want=%v", term, got, want)
+		}
+	}
+	if _, err := os.Stat(tmp); err != nil {
+		t.Fatalf("saved index file missing: %v", err)
+	}
+}
+
+func TestParseErrors(t *testing.T) {
+	bad := []string{
+		`ADJ(alpha beta)`,
+		`NEAR(2, alpha)`,
+		`FIRST alpha`,
+		`(alpha AND beta`,
+		`alpha AND )`,
+	}
+	for _, q := range bad {
+		if _, err := Parse(q); err == nil {
+			t.Fatalf("expected parse error for query: %q", q)
+		}
+	}
+}
+
+func TestMMapOpenErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	empty := filepath.Join(dir, "empty.irx")
+	if err := os.WriteFile(empty, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenMMapIndex(empty); err == nil {
+		t.Fatal("expected error on empty index file")
+	}
+
+	badMagic := filepath.Join(dir, "badmagic.irx")
+	if err := os.WriteFile(badMagic, []byte("not-an-index"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenMMapIndex(badMagic); err == nil {
+		t.Fatal("expected error on bad magic")
+	}
+
+	// truncation after header/doc-len section
+	var buf bytes.Buffer
+	buf.Write([]byte{'I', 'R', 'I', 'X', 'V', '1', 0, 0})
+	buf.Write([]byte{1, 0, 0, 0}) // nDocs=1
+	buf.Write([]byte{1, 0, 0, 0}) // nTerms=1
+	// no doclen and no terms -> truncated
+	trunc := filepath.Join(dir, "trunc.irx")
+	if err := os.WriteFile(trunc, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenMMapIndex(trunc); err == nil {
+		t.Fatal("expected error on truncated file")
+	}
+}
+
+func TestMMapDocLenAndDF(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{
+		"alpha beta gamma",
+		"alpha beta",
+		"omega",
+	})
+	tmp := filepath.Join(t.TempDir(), "index.irx")
+	if err := SaveCompressed(ix, tmp); err != nil {
+		t.Fatal(err)
+	}
+	mi, err := OpenMMapIndex(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mi.Close()
+
+	if mi.DocLen(0) != 3 || mi.DocLen(1) != 2 || mi.DocLen(2) != 1 {
+		t.Fatalf("unexpected doc lens: %d %d %d", mi.DocLen(0), mi.DocLen(1), mi.DocLen(2))
+	}
+	if mi.DocLen(99) != 0 {
+		t.Fatalf("out of range doc len must be 0")
+	}
+	if mi.df("alpha") != 2 {
+		t.Fatalf("df(alpha) want 2 got %d", mi.df("alpha"))
+	}
+	if mi.df("missing") != 0 {
+		t.Fatalf("df(missing) want 0 got %d", mi.df("missing"))
+	}
+}
+
+func TestComplexExpressionFastSlow(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{
+		"alpha beta gamma omega",
+		"alpha x beta y gamma",
+		"omega alpha beta",
+		"zeta eta",
+		"beta gamma alpha",
+	})
+	q := `(ADJ(alpha,beta) OR NEAR(2,alpha,gamma)) AND NOT LAST(eta)`
+	ast, err := Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fast := Eval(ix, ast)
+	slow := SlowEval(ix, ast)
+	if fmt.Sprint(fast) != fmt.Sprint(slow) {
+		t.Fatalf("complex query mismatch fast=%v slow=%v", fast, slow)
 	}
 }

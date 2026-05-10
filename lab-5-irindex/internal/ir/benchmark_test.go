@@ -95,3 +95,46 @@ func BenchmarkQueryEvalMixed(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkQueryAdjNear(b *testing.B) {
+	words := defaultWords()
+	adjQ, err := Parse(`ADJ(alpha, beta) AND NOT EDGE_END(delta)`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	nearQ, err := Parse(`NEAR(3, alpha, gamma) OR ADJ(gamma, omega)`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, n := range corpusSizes(b) {
+		ix := fillCorpus(n, 5150, words)
+		b.Run(fmt.Sprintf("idx_adj_%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = Eval(ix, adjQ)
+			}
+		})
+		b.Run(fmt.Sprintf("scan_adj_%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = SlowEval(ix, adjQ)
+			}
+		})
+		b.Run(fmt.Sprintf("idx_near_%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = Eval(ix, nearQ)
+			}
+		})
+		b.Run(fmt.Sprintf("scan_near_%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = SlowEval(ix, nearQ)
+			}
+		})
+	}
+}
