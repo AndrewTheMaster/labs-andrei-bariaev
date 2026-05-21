@@ -66,6 +66,6 @@ for prof in "${profiles[@]}"; do
   if screenshot_flame_png "${out_html}" "${PLOT_DIR}/flamegraph_${prof}.png"; then
     :
   else
-    echo "    (нет headless chromium — только HTML; PNG из dot: см. Makefile)"
+    echo "    (нет headless chromium — только HTML flamegraph)"
   fi
 done

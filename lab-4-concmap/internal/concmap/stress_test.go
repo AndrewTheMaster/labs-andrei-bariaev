@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Специализированный concurrent-контур: go test -race -count=N.
+// Стресс и гонки: make test-race (go test -race -count=3), аналог jcstress для Go.
 func TestStressMergeAdditiveRace(t *testing.T) {
 	if testing.Short() {
 		t.Skip()

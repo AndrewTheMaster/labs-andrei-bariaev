@@ -1,83 +1,111 @@
 # Лабораторная работа №4 — Потокобезопасная хеш-таблица с закрытой адресацией
 
 **Дисциплина:** Структуры и алгоритмы в базах данных и распределённых системах  
-**Тема:** Striping + per-bucket RW-lock: сравнение с «одной глобальной RWMutex» вокруг обычной `map`
+**Тема:** Сегментированная hash-map (striping) с per-bucket `RWMutex` и сравнение с baseline
 
 ---
 
 ## Содержание
 
-1. [Постановка и соответствие CHM](#1-постановка-и-соответствие-chm)
-2. [Реализация](#2-реализация)
-3. [Методика бенчмарков](#3-методика-бенчмарков)
-4. [Результаты и графики](#4-результаты-и-графики)
-5. [Concurrency-тесты («аналог jcstress»)](#5-concurrency-тесты-аналог-jcstress)
-6. [Профилирование CPU и памяти](#6-профилирование-cpu-и-памяти)
-7. [Вывод](#7-вывод)
+1. [Теоретическая часть](#1-теоретическая-часть)
+   - [1.1 Постановка и соответствие CHM](#11-постановка-и-соответствие-chm)
+   - [1.2 Закрытая адресация](#12-закрытая-адресация)
+   - [1.3 Baseline-реализации](#13-baseline-реализации)
+2. [Практическая часть](#2-практическая-часть)
+   - [2.1 API и файлы](#21-api-и-файлы)
+   - [2.2 `Map` — основная структура](#22-map--основная-структура)
+3. [Исследовательская часть](#3-исследовательская-часть)
+   - [3.1 Аппаратные характеристики](#31-аппаратные-характеристики)
+   - [3.2 Методика замеров](#32-методика-замеров)
+   - [3.3 Параллельные сценарии](#33-параллельные-сценарии)
+   - [3.4 Однопоточный Get (concmap / plain / unsafe)](#34-однопоточный-get-concmap--plain--unsafe)
+4. [Concurrency-тесты](#4-concurrency-тесты)
+5. [Профилирование](#5-профилирование)
+6. [Вывод](#6-вывод)
 
 ---
 
-## 1. Постановка и соответствие CHM
+## 1. Теоретическая часть
 
-Требуется **закрытая адресация** (цепочки в бакетах) и API:
+### 1.1 Постановка и соответствие CHM
 
-- **`Put` / `Get` / `Size` / `Clear` / `Merge` / `Range`**
-- операции чтения (**`Get`/`Range`**) **«почти никогда не блокируют»** за исключением конфликтов с писателями того же сегмента;
-- **happens-before**: завершённая запись видна последующим успешным чтениям тем же или другим горутинам (см. память-модель Go `sync`: release при `Unlock` / `RUnlock` и acquire при последующем `Lock` / `RLock` — аналог идеи *retrieval operations do not block …* и *happens-before ordering* в [документации `ConcurrentHashMap`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html)).
+Требуется **потокобезопасная** хеш-таблица с минимальным API:
 
-**Baseline** — `Plain[K,V]`: одна `sync.RWMutex` + встроенная `map`; любой `Get` берёт глобальный `RLock`, поэтому **параллельные записи в другие ключи** всё равно блокируют **всех** читателей.
+| Операция | Семантика |
+|:---------|:----------|
+| `Put` | вставка или перезапись |
+| `Get` | чтение по ключу |
+| `Size` | число ключей |
+| `Clear` | удалить все пары |
+| `Merge` | как в JDK `ConcurrentHashMap.merge`: для нового ключа — `value` без `merger`; иначе `merger(existing, incoming)` |
+| `Range` | итератор (callback) по парам ключ–значение |
 
-**Основная структура** — `Map[K,V]` в [`internal/concmap/map.go`](internal/concmap/map.go): `2^bucketBits` бакетов, каждый хранит указатель на односвязную цепочку и **свой** `sync.RWMutex`. Хеш — `uint64 & (n-1)`; для `string` ключей выбран быстрый путь без `reflect` в [`makeDefaultHashFunc`](internal/concmap/map.go).
+Дополнительные требования (по [документации `ConcurrentHashMap`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html)):
 
-**`Merge`**, как в JDK: если ключа не было — сохраняется `value` без вызова функции слияния; иначе **`merger(existing, incoming)`**.
+- операции чтения **`Get` / `Range`** «почти никогда не блокируют» — не ждут записи в **других** сегментах;
+- между **завершёнными** операциями есть наблюдаемый порядок (**happens-before**): в Go это обеспечивается `sync.RWMutex` (release при `Unlock`/`RUnlock`, acquire при последующем `Lock`/`RLock`).
 
-**`Range`**: итерация бакет за бакетом под `RLock`, слабая согласованность (как weakly-consistent view у CHM): живых паник из-за параллельных модификаций нет, но «снимок всей таблицы» не гарантируется.
+### 1.2 Закрытая адресация
 
-**`Size`** — атомарный счётчик корректируется на вставку нового ключа (`Put`/`Merge`); `Clear` обнуляет счётчик **под удержанием всех бакетных Lock** (см. порядок ниже в коде: сначала очистка цепочек + `size.Store(0)`, затем `Unlock`).
+**Закрытая адресация** — коллизии разрешаются **цепочками** внутри бакета (отдельные связные списки), а не пробированием в массиве слотов (открытая адресация).
+
+Таблица состоит из `2^bucketBits` бакетов; индекс бакета: `hash(key) & (n-1)`.
+
+### 1.3 Baseline-реализации
+
+| Реализация | Назначение |
+|:-----------|:-----------|
+| **`Unsafe`** | встроенная `map` **без** синхронизации — эталон «не-thread-safe» для однопоточных тестов и бенчмарков |
+| **`Plain`** | одна `sync.RWMutex` вокруг `map` — грубая потокобезопасность для **параллельных** сравнений |
+| **`Map`** | сегментированная таблица: свой `RWMutex` на бакет |
 
 ---
 
-## 2. Реализация
+## 2. Практическая часть
+
+### 2.1 API и файлы
 
 | Файл | Назначение |
 |:-----|:-----------|
 | [`internal/concmap/map.go`](internal/concmap/map.go) | `Map`, `New`, `Put`, `Get`, `Merge`, `Clear`, `Size`, `Range`, `WithHasher` |
-| [`internal/concmap/plain.go`](internal/concmap/plain.go) | эталонная «одна mutex + map» оболочка |
-| [`internal/concmap/hasher.go`](internal/concmap/hasher.go) | reflect-хэш для общих `K` или кастомная функция |
+| [`internal/concmap/plain.go`](internal/concmap/plain.go) | `Plain` — глобальный `RWMutex` + `map` |
+| [`internal/concmap/unsafe.go`](internal/concmap/unsafe.go) | `Unsafe` — `map` без mutex (только однопоточно) |
+| [`internal/concmap/hasher.go`](internal/concmap/hasher.go) | reflect-хэш для общих `K` |
 
----
-
-## 3. Методика бенчмарков
-
-Запуск через [`Makefile`](Makefile):
+Воспроизведение:
 
 ```bash
-make collect plot   # gnuplot строит PNG latency в metrics/plots/
-make profile        # CPU+heap prof, pprof -png (+ flame graph HTML/PNG см. §6)
-make test-race      # -race + многократные concurrency тесты
+make test          # модульные + оракул-тесты
+make test-race     # -race -count=3
+make collect plot  # бенчи → CSV → gnuplot PNG
+make profile       # CPU/heap prof → flamegraph HTML/PNG
 ```
 
-Переменные:
+### 2.2 `Map` — основная структура
 
-- **`BENCH_KEYS`** — два размера предзаполненной таблицы (ключи `fmt.Sprintf("k_%d")`);
-- каждый сценарий — `testing.B.RunParallel` (столько процессоров, сколько `GOMAXPROCS`).
-
-Измерены четыре сценария:
-
-1. **`BenchmarkParallelGetHit`** — успешное чтение существующих ключей под конкуренцией;
-2. **`BenchmarkParallelPutOverwrite`** — перезапись фиксированного набора ключей (тяжёлое соперничество записи);
-3. **`BenchmarkParallelMixedRW`** — цикл `Get` / `Put` / отдельные `mix_%d`-ключи для `Merge` в пропорции 1:1:1;
-4. **`BenchmarkRangeFullTable`** — последовательный полный проход `Range`.
-
-Сырые логи в `metrics/raw/benchmarks.txt`, агрегированная таблица — `metrics/raw/benchmarks.csv` (поле `*_per_op` уже нормализовано gnuplot-серии `series_*.tsv` генерируется в `collect`).
+- бакет: `sync.RWMutex` + односвязный список `node`;
+- `Get` / `Range` — `RLock` **только своего** бакета;
+- `Put` / `Merge` — `Lock` бакета; `Size` — `atomic.Uint64` (+1 только при вставке нового ключа);
+- `Clear` — последовательный захват всех бакетов слева направо (анти-deadlock), обнуление цепочек и `size.Store(0)`;
+- `Range` — слабая согласованность (weakly-consistent view): без паник при конкурентных изменениях, без гарантии «снимка всей таблицы».
 
 ---
 
-## 4. Результаты и графики
+## 3. Исследовательская часть
 
-**Аппаратное окружение замеров данного отчёта:** Linux amd64 (Fedora), CPU см. строку `cpu:` бенча; Go toolchain соответствует `go.mod`.
+### 3.1 Аппаратные характеристики
 
-### Таблица 4.1 — `ns/op` из `metrics/raw/benchmarks.csv` (prelude `BENCH_KEYS=4096,65536`)
+Замеры отчёта: Linux amd64 (Fedora), параметры CPU — строка `cpu:` в `metrics/raw/benchmarks.txt`; Go — версия из `go.mod`.
+
+### 3.2 Методика замеров
+
+- **`BENCH_KEYS`** — размеры предзаполненной таблицы (по умолчанию `4096,65536`);
+- параллельные сценарии — `testing.B.RunParallel` (`GOMAXPROCS` потоков);
+- однопоточный `Get` — отдельный бенч `BenchmarkSequentialGetHit` (сравнение накладных расходов синхронизации).
+
+### 3.3 Параллельные сценарии
+
+#### Таблица 3.1 — `ns/op` (`BENCH_KEYS=4096,65536`, `metrics/raw/benchmarks.csv`)
 
 | workload | impl | keys | ns/op |
 |:---------|:-----|-----:|------:|
@@ -98,118 +126,117 @@ make test-race      # -race + многократные concurrency тесты
 | RangeFullTable | concmap | 65536 | 734148 |
 | RangeFullTable | plain | 65536 | 779573 |
 
-**Интерпретация:**
-
-- При **конкуррентном чтении (`Get Hit`)** `concmap` в **3–4×** быстрее baseline: блокировки сегментированы, два ядра читают разные ключи почти без стыковки, тогда как `plain` упирается в глобальный `rwmutex`-шлюз (+ атомики встроенной `map` под капотом).
-- При **перезаписи (`Put overwrite`)** выигрыш **~10×**: baseline сериализует даже столкновения ключей разных семейств, наш — только бакеты.
-- **Mixed** сохраняет преимущество, но уже меньше: нагрузку размывают дорогие `Merge`/`Put` локально.
-- **Range**: `concmap` выигрывает за счёт **короче держимых `RLock` на маленьком бакете** и отсутствия «одного большого захвата» на всю таблицу; при этом абсолютные `ns/op` огромные — обход тысяч/десятков тысяч цепочек.
-
-#### Рисунок 4.1 — Parallel Get-hit (`metrics/plots/latency_parallel_get_hit.png`)
+#### Рисунок 3.1 — Parallel Get-hit
 
 ![Parallel get hit](./metrics/plots/latency_parallel_get_hit.png)
 
-#### Рисунок 4.2 — Parallel Put overwrite (`latency_parallel_put_overwrite.png`)
+#### Рисунок 3.2 — Parallel Put overwrite
 
 ![Parallel put overwrite](./metrics/plots/latency_parallel_put_overwrite.png)
 
-#### Рисунок 4.3 — Parallel mixed RW (`latency_parallel_mixed_rw.png`)
+#### Рисунок 3.3 — Parallel mixed RW
 
 ![Parallel mixed RW](./metrics/plots/latency_parallel_mixed_rw.png)
 
-#### Рисунок 4.4 — Range full (`latency_range_full_table.png`)
+#### Рисунок 3.4 — Range full table
 
 ![Range full](./metrics/plots/latency_range_full_table.png)
 
+**Анализ.**
+
+- **Parallel Get-hit:** `concmap` в **3–4×** быстрее `Plain` — чтения не делят один глобальный `RLock` с записями в другие бакеты.
+- **Put overwrite:** выигрыш **~10×** — `Plain` сериализует все мутации для всех читателей.
+- **Mixed RW:** преимущество сохраняется, но меньше из-за локальных `Merge`/`Put`.
+- **Range:** умеренный выигрыш — короткие `RLock` на бакет вместо одного захвата всей `map`; абсолютная стоимость велика (обход всех цепочек).
+
+### 3.4 Однопоточный Get (concmap / plain / unsafe)
+
+Для сравнения с **не-thread-safe** `map` добавлен `BenchmarkSequentialGetHit` (одна горутина, без `RunParallel`):
+
+| impl | роль |
+|:-----|:-----|
+| `unsafe` | нижняя граница — встроенная `map` |
+| `concmap` | цепочки + `RLock` на бакет |
+| `plain` | `map` + `RLock` на всю таблицу |
+
+Пример (`BENCH_KEYS=4096`, одна горутина в теле бенча):
+
+| impl | ns/op |
+|:-----|------:|
+| unsafe | 28.4 |
+| plain | 42.5 |
+| concmap | 85.9 |
+
+**Анализ:** в **однопотоке** `unsafe` быстрее всех; `plain` обгоняет `concmap`, потому что встроенная `map` O(1) против обхода цепочки. Выигрыш `concmap` проявляется в **§3.3** при `RunParallel`, когда `Plain` блокирует всех читателей на любой записи. Полный прогон: `make collect`.
+
 ---
 
-## 5. Concurrency-тесты («аналог jcstress»)
+## 4. Concurrency-тесты
 
-Java-экосистемный **jcstress** в Go напрямую не дублируется, поэтому применены:
+В Java для этого используют **jcstress**; в Go применены:
 
-1. **`-race`** на всех модульных/стресс тестах (`make test-race`). Детектор гонок — основной официальный инструмент времени выполнения; он ловит нарушения отношений **happens-before** на памяти пользовательского уровня.
-2. **`TestStressMergeAdditiveRace`** — стресс суммирования счётчиков через `Merge` + независимая последовательная модель суммирования ключей под `mutex` → сверка ожидаемых значений.
-3. **`TestStressPlainVsConcNoPanic`** — комбинируется `Put`/`Get`/`Merge`/`Range`/`Clear` из десятков горутин, проверяя отсутствие блокировочных ошибок конструктора.
-
-Дополнительно можно подключить **linearizability** (напр. checker уровня *porcupine*) — это выходит за минимально необходимый объём, но даёт jcstress-близкую модель упорядочивания операций.
+1. **`go test -race`** (`make test-race`, `-count=3`) — детектор гонок по happens-before.
+2. **`TestMapMatchesUnsafeOracle`** — последовательная сверка `Map` с `Unsafe` на случайных `Put`/`Get`/`Merge`/`Clear` (паттерн оракула как `TestSearcherRandomInsertAndQuery` в lab-2).
+3. **`TestMapImplsMatchUnsafeOracle`** — то же для `concmap` и `plain` в однопоточном режиме.
+4. **`TestStressMergeAdditiveRace`** — параллельное суммирование через `Merge` vs эталон под `mutex`.
+5. **`TestStressPlainVsConcNoPanicRace`** — хаотичный микс `Put`/`Get`/`Merge`/`Range`/`Clear` из 32 горутин.
+6. **`TestHappensBeforePutGet`**, **`TestSizeZeroAfterClearConcurrent`**.
 
 ---
 
-## 6. Профилирование CPU и памяти
+## 5. Профилирование
 
-Замеры: параллельный `BenchmarkParallelGetHit/size_65536/{concmap|plain}`, CPU + heap профили через `-cpuprofile` / `-memprofile`.
+Профили сняты для `BenchmarkParallelGetHit/size_65536/{concmap|plain}` (`-cpuprofile` / `-memprofile`).  
+Flamegraph-ы — через `go tool pprof -http` и [`scripts/gen_flamegraphs.sh`](scripts/gen_flamegraphs.sh) (как в lab-2). Текстовые `top` — в `metrics/profiles/`.
 
-```bash
-make profile      # *.prof и top-тексты в metrics/profiles/; PNG + flame graph в metrics/plots/
-```
+### 5.1 CPU — параллельный Get
 
-Для каждого сценария генерируются:
+**Рисунок 5.1 — Flamegraph CPU, `concmap`**
 
-- текстовые **`top`**: [`cpu_parallel_get_conc_top.txt`](metrics/profiles/cpu_parallel_get_conc_top.txt), [`mem_parallel_get_conc_mem_top.txt`](metrics/profiles/mem_parallel_get_conc_mem_top.txt) и симметрично для `plain`;
-- **`go tool pprof -png`** — граф вызовов (нужен **graphviz**, `dot`);
-- интерактивный **`/ui/flamegraph`** через `go tool pprof -http` + сохранённый HTML; при наличии headless Chromium/Chrome делается **скриншот PNG** тем же пайплайном, что в lab-2 (см. [`scripts/gen_flamegraphs.sh`](scripts/gen_flamegraphs.sh)).
+![Flamegraph CPU concmap](./metrics/plots/flamegraph_cpu_parallel_get_conc.png)
 
-### 6.1 CPU — параллельный Get
+**Рисунок 5.2 — Flamegraph CPU, `plain`**
 
-**Рисунок 6.1 — Flamegraph CPU, `concmap` (`flamegraph_cpu_parallel_get_conc.png`)**
+![Flamegraph CPU plain](./metrics/plots/flamegraph_cpu_parallel_get_plain.png)
 
-![Flame CPU concmap](./metrics/plots/flamegraph_cpu_parallel_get_conc.png)
+| Функция | flat (порядок) | Вывод |
+|:--------|:---------------|:------|
+| `concmap`: `memeqbody` | ~31% | сравнение строковых ключей в цепочке |
+| `concmap`: `Map.Get` cum | ~96% | hot-path: `RLock` + обход списка |
+| `plain`: `atomic` в `RWMutex` | ~76% | contention на глобальном замке |
+| `plain`: `Plain.Get` cum | ~96% | builtin `map` под одним `RLock` |
 
-**Рисунок 6.2 — Flamegraph CPU, `plain` (`flamegraph_cpu_parallel_get_plain.png`)**
+Интерактивно: [`flamegraph_cpu_parallel_get_conc.html`](metrics/plots/flamegraph_cpu_parallel_get_conc.html), [`flamegraph_cpu_parallel_get_plain.html`](metrics/plots/flamegraph_cpu_parallel_get_plain.html).
 
-![Flame CPU plain](./metrics/plots/flamegraph_cpu_parallel_get_plain.png)
+### 5.2 Память — параллельный Get (`alloc_space`)
 
-**Рисунок 6.3 — Call graph CPU (`go tool pprof -png`), `concmap`**
+**Рисунок 5.3 — Flamegraph памяти, `concmap`**
 
-![pprof cpu conc](./metrics/plots/pprof_cpu_get_concmap.png)
+![Flamegraph mem conc](./metrics/plots/flamegraph_mem_parallel_get_conc.png)
 
-**Рисунок 6.4 — Call graph CPU, `plain`**
+**Рисунок 5.4 — Flamegraph памяти, `plain`**
 
-![pprof cpu plain](./metrics/plots/pprof_cpu_get_plain.png)
+![Flamegraph mem plain](./metrics/plots/flamegraph_mem_parallel_get_plain.png)
 
-| Компонента | flat (порядок) | Комментарий |
-|:-----------|:---------------|:--------------|
-| `concmap`: `memeqbody` | ~31% | сравнение ключей при обходе цепочки |
-| `concmap`: `Map.Get` cum | ~96% | вся стоимость чтения в одном месте списка + короткий `RLock` |
-| `plain`: `atomic.Int32.Add` | ~76% | счётчик `RLock`-ов делит линию с упором в общий замок |
-| `plain`: `Plain.Get` cum | ~96% | встроенная `map` + глобальный `RWMutex` |
-
-Интерактивный HTML flame graph: [`flamegraph_cpu_parallel_get_conc.html`](metrics/plots/flamegraph_cpu_parallel_get_conc.html), [`flamegraph_cpu_parallel_get_plain.html`](metrics/plots/flamegraph_cpu_parallel_get_plain.html).
-
-### 6.2 Память — параллельный Get (`alloc_space`)
-
-**Рисунок 6.5 — Flamegraph памяти, `concmap`**
-
-![Flame mem conc](./metrics/plots/flamegraph_mem_parallel_get_conc.png)
-
-**Рисунок 6.6 — Flamegraph памяти, `plain`**
-
-![Flame mem plain](./metrics/plots/flamegraph_mem_parallel_get_plain.png)
-
-**Рисунок 6.7 — Call graph heap (`go tool pprof -alloc_space -png`), `concmap`**
-
-![pprof mem conc](./metrics/plots/pprof_mem_get_concmap.png)
-
-**Рисунок 6.8 — Call graph heap, `plain`**
-
-![pprof mem plain](./metrics/plots/pprof_mem_get_plain.png)
-
-| Функция | concmap (~alloc_space) | plain (~alloc_space) | Интерпретация |
-|:--------|----------------------:|---------------------:|:--------------|
-| `Map.Put` / `Plain.Put` | ~10.5 MB (≈43%) | ~29.4 MB (≈71%) | бенч **предварительно заполняет** таблицу `Put`; у `Plain` дороже рост builtin-`map` |
-| `makeKeys` | ~3.75 MB (~15%) | ~1.7 MB (~4%) | генерация строковых ключей для смеси операций (`fmt.Sprintf`-стиль нагрузки) |
-| `runtime.allocm` | заметная доля | заметная доля | побочный эффект параллельного бенча и захвата heap-профиля |
-| профилировщик / gzip | несколько процентов | несколько процентов | включён общий захват профилей; для «идеальных» долей брать узкий бенч и отдельный `-memprofile` только на `Get` |
-
-**Вывод по памяти:** у **`Plain`** доминирует аллокация при прогреве (`Put`) на одной большой встроенной `map`; у **`concmap`** доля узловых вставок в цепочки ниже в этом смесительном профиле, но остаются накладные расходы `makeKeys` и рантайма. Для снижения шума в отчётных `alloc_space` разумно разнести **прогрев** и профилирование «чистого» `Get`, а для оптимизаций продакшена — пулировать буферы генерации ключей.
+| Функция | concmap | plain | Вывод |
+|:--------|--------:|------:|:------|
+| `Put` (прогрев) | ~43% alloc | ~71% alloc | у `Plain` дороже рост builtin-`map` |
+| `makeKeys` / runtime | заметная доля | заметная доля | шум параллельного бенча; для «чистого» Get — разнести прогрев и профиль |
 
 HTML: [`flamegraph_mem_parallel_get_conc.html`](metrics/plots/flamegraph_mem_parallel_get_conc.html), [`flamegraph_mem_parallel_get_plain.html`](metrics/plots/flamegraph_mem_parallel_get_plain.html).
 
 ---
 
-## 7. Вывод
+## 6. Вывод
 
-1. Сегментированная хеш-таблица с **закрытой адресацией и per-bucket `RWMutex`** даёт операциям чтения «локальность» блокировок: они не конкурируют с изменениями **других** бакетов, соблюдая при этом упорядочивание между завершёнными мутациями и последующими чтениями.
-2. Baseline одиночной `sync.RWMutex` вокруг `map`, напротив, **блокирует всех при любой мутации**, что особенно проявляется в сценариях многопоточных `Put`/смешанных нагрузок.
-3. Недостаток текущей реализации: **дорогая микро-хэш-проходка списков** под конкуррентными обновлениями (цепочка длиннее при плохом распределении); для production стоило бы добавить **динамический rehash**/контроль длины цепочек и **более дешёвый string hash**.
-4. Concurrency качество верифицируется **`-race` + стохастический стресс**; для jcstress-подобного отчёта дополнительно оправдан внешний checker линеаризации.
+1. Реализована сегментированная hash-map с **закрытой адресацией** и API по ТЗ; чтения локализуют блокировки на бакет.
+2. Три уровня сравнения: **`Unsafe`** (не-thread-safe), **`Plain`** (глобальный mutex), **`Map`** (per-bucket) — покрывают и требование ТЗ, и параллельные бенчи.
+3. На параллельных нагрузках `Map` в **3–10×** быстрее `Plain`; узкое место — обход цепочек и сравнение ключей (видно на flamegraph).
+4. Корректность: **`-race`**, оракул-тесты против `Unsafe`, стресс `Merge` и смешанных операций.
+5. Ограничения: фиксированное число бакетов (нет rehash), `Size` при гонках с `Clear` — как у CHM, без строгого снимка.
+
+| Сценарий | Рекомендация |
+|:---------|:-------------|
+| Однопоток, максимум скорости | `Unsafe` / builtin `map` |
+| Много читателей, редкие записи в разные ключи | `Map` (concmap) |
+| Простая обёртка над `map` | `Plain` (проще, но хуже под contention) |

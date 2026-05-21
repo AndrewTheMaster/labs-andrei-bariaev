@@ -195,6 +195,49 @@ func BenchmarkParallelMixedRW(b *testing.B) {
 	}
 }
 
+func BenchmarkSequentialGetHit(b *testing.B) {
+	sizes := envSizes(b)
+	bbits := envBucketBits(b)
+
+	for _, sz := range sizes {
+		keys := makeKeys(sz)
+		b.Run(fmt.Sprintf("size_%d", sz), func(b *testing.B) {
+			b.Run("concmap", func(b *testing.B) {
+				tab := fillConc(keys, bbits)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _ = tab.Get(keys[i%sz])
+				}
+			})
+			b.Run("plain", func(b *testing.B) {
+				tab := fillPlain(keys)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _ = tab.Get(keys[i%sz])
+				}
+			})
+			b.Run("unsafe", func(b *testing.B) {
+				tab := fillUnsafe(keys)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _ = tab.Get(keys[i%sz])
+				}
+			})
+		})
+	}
+}
+
+func fillUnsafe(keys []string) *Unsafe[string, int] {
+	m := NewUnsafe[string, int]()
+	for i, k := range keys {
+		m.Put(k, i)
+	}
+	return m
+}
+
 func BenchmarkRangeFullTable(b *testing.B) {
 	sizes := envSizes(b)
 	bbits := envBucketBits(b)

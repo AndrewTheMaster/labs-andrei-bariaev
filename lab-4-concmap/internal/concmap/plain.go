@@ -2,8 +2,9 @@ package concmap
 
 import "sync"
 
-// Plain[K,V] — одно RWMutex вокруг встроенного map (baseline для бенчмарков/concurrency-тестов).
-// Чтение Get/Range подключают RLock ко всей таблице: любая запись блокирует всех читателей.
+// Plain[K,V] — потокобезопасная обёртка: одна RWMutex вокруг встроенной map.
+// Baseline для параллельных бенчмарков: грубая синхронизация (любая запись блокирует всех читателей).
+// Для однопоточного «сырого» map без mutex см. Unsafe.
 type Plain[K comparable, V any] struct {
 	mu sync.RWMutex
 	m  map[K]V
