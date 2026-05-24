@@ -1,28 +1,33 @@
 File: concmap.test
-Build ID: 9c31420a4119fdb1209821a8d8475c4832e87ebc
+Build ID: 8cd9423345167f3679be08a02571e845ca890674
 Type: cpu
-Time: 2026-05-02 18:04:55 MSK
-Duration: 1.18s, Total samples = 13.63s (1159.72%)
-Showing nodes accounting for 13.49s, 98.97% of 13.63s total
-Dropped 13 nodes (cum <= 0.07s)
+Time: 2026-05-24 21:49:31 MSK
+Duration: 2.08s, Total samples = 22.71s (1092.77%)
+Showing nodes accounting for 22.29s, 98.15% of 22.71s total
+Dropped 53 nodes (cum <= 0.11s)
       flat  flat%   sum%        cum   cum%
-     4.24s 31.11% 31.11%      4.24s 31.11%  memeqbody
-     3.77s 27.66% 58.77%     13.03s 95.60%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Get
-     3.04s 22.30% 81.07%      3.05s 22.38%  sync/atomic.(*Int32).Add (inline)
-     0.66s  4.84% 85.91%      0.66s  4.84%  aeshashbody
-     0.48s  3.52% 89.44%     13.54s 99.34%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1.1
-     0.22s  1.61% 91.05%      0.22s  1.61%  runtime.memequal
-     0.19s  1.39% 92.44%      0.22s  1.61%  hash/maphash.(*Hash).WriteString
-     0.19s  1.39% 93.84%      0.19s  1.39%  hash/maphash.(*Hash).initSeed
-     0.18s  1.32% 95.16%      1.51s 11.08%  siaod-hw4-concmap/internal/concmap.makeDefaultHashFunc[go.shape.string].func1
-     0.16s  1.17% 96.33%      1.02s  7.48%  hash/maphash.(*Hash).Sum64
-     0.15s  1.10% 97.43%      1.66s 12.18%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).bucketOf (inline)
-     0.09s  0.66% 98.09%      0.09s  0.66%  runtime.duffzero
-     0.08s  0.59% 98.68%      0.29s  2.13%  sync.(*RWMutex).RUnlock (inline)
-     0.03s  0.22% 98.90%      2.87s 21.06%  sync.(*RWMutex).RLock (inline)
-     0.01s 0.073% 98.97%      0.08s  0.59%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Put
-         0     0% 98.97%      0.67s  4.92%  hash/maphash.rthash (inline)
-         0     0% 98.97%      0.08s  0.59%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1
-         0     0% 98.97%      0.08s  0.59%  siaod-hw4-concmap/internal/concmap.fillConc
-         0     0% 98.97%     13.54s 99.34%  testing.(*B).RunParallel.func1
-         0     0% 98.97%      0.09s  0.66%  testing.(*B).runN
+    10.14s 44.65% 44.65%     10.20s 44.91%  sync/atomic.(*Int32).Add (inline)
+     2.33s 10.26% 54.91%      2.33s 10.26%  aeshashbody
+     1.77s  7.79% 62.70%     20.45s 90.05%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Get
+     1.71s  7.53% 70.23%     22.33s 98.33%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1.1
+     1.25s  5.50% 75.74%      1.49s  6.56%  hash/maphash.(*Hash).WriteString
+     0.96s  4.23% 79.96%      0.96s  4.23%  hash/maphash.(*Hash).initSeed
+     0.96s  4.23% 84.19%      0.96s  4.23%  memeqbody
+     0.71s  3.13% 87.32%      6.52s 28.71%  siaod-hw4-concmap/internal/concmap.makeDefaultHashFunc[go.shape.string].func1
+     0.62s  2.73% 90.05%      4.05s 17.83%  hash/maphash.(*Hash).Sum64
+     0.57s  2.51% 92.56%      7.09s 31.22%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).bucketOf (inline)
+     0.29s  1.28% 93.84%      9.41s 41.44%  sync.(*RWMutex).RLock (inline)
+     0.24s  1.06% 94.89%      0.24s  1.06%  runtime.duffzero
+     0.23s  1.01% 95.90%      0.23s  1.01%  runtime.memmove
+     0.21s  0.92% 96.83%      0.21s  0.92%  runtime.memequal
+     0.14s  0.62% 97.45%      0.14s  0.62%  runtime.memhash
+     0.12s  0.53% 97.97%      0.12s  0.53%  sync/atomic.(*Uint64).Add (inline)
+     0.03s  0.13% 98.11%      0.18s  0.79%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).resize
+     0.01s 0.044% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Put
+         0     0% 98.15%      2.47s 10.88%  hash/maphash.rthash (inline)
+         0     0% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1
+         0     0% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.fillConc
+         0     0% 98.15%      1.08s  4.76%  sync.(*RWMutex).RUnlock (inline)
+         0     0% 98.15%     22.34s 98.37%  testing.(*B).RunParallel.func1
+         0     0% 98.15%      0.25s  1.10%  testing.(*B).launch
+         0     0% 98.15%      0.31s  1.37%  testing.(*B).runN

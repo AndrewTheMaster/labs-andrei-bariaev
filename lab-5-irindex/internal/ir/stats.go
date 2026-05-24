@@ -32,7 +32,7 @@ func EstimateIndexBytes(ix *InvIndex) int64 {
 	for term, ps := range ix.postings {
 		n += int64(len(term))
 		for _, p := range ps {
-			n += int64(unsafe.Sizeof(posting{})) + int64(cap(p.Poss))*4
+			n += int64(unsafe.Sizeof(posting{})) + int64(len(p.Poss))*4
 		}
 		n += int64(cap(ps)) * int64(unsafe.Sizeof(posting{}))
 	}

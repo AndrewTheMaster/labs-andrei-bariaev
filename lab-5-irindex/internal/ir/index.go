@@ -10,19 +10,18 @@ type posting struct {
 type Doc struct {
 	ID     uint32
 	Tokens []string
-	NTok   int // число токенов (для edge/BM25, если Tokens не хранятся)
+	NTok   int // число токенов (для edge/BM25/MSM, если Tokens не хранятся)
 }
 
 // InvIndex хранит позиционные постинговые списки (DocID монотонно растёт с порядком Add).
 type InvIndex struct {
 	Docs     []Doc
 	postings map[string][]posting
-	// allIDsBuf ленивая последовательность [0 .. NumDocs-1] для дополнений NOT.
 	allIDsBuf []uint32
-	// posArena — единый буфер позиций; срезы в posting.Poss ссылаются сюда (без копии на терм).
-	posArena []uint32
-	// tokScratch переиспользуется в Add: map очищается по длине, слайсы — [:0].
+	posArena  []uint32
 	tokScratch map[string][]uint32
+	// scratchKeys — термы только текущего документа (не обходим весь словарь вики на каждый Add).
+	scratchKeys []string
 }
 
 func NewIndex() *InvIndex {
@@ -36,18 +35,38 @@ func sortUint32(s []uint32) {
 	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
 }
 
-// Add добавляет документ как последовательность токенов.
+// Add добавляет документ и сохраняет токены в RAM (тесты, MSM).
 func (ix *InvIndex) Add(tokens []string) uint32 {
-	id := uint32(len(ix.Docs))
-	ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: tokens, NTok: len(tokens)})
+	return ix.add(tokens, true)
+}
 
-	for k := range ix.tokScratch {
+// AddLean — только постинги + NTok; тексты не копируются (вики, большие корпуса).
+func (ix *InvIndex) AddLean(tokens []string) uint32 {
+	return ix.add(tokens, false)
+}
+
+func (ix *InvIndex) add(tokens []string, keepTokens bool) uint32 {
+	id := uint32(len(ix.Docs))
+	if keepTokens {
+		cp := append([]string(nil), tokens...)
+		ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: cp, NTok: len(tokens)})
+	} else {
+		ix.Docs = append(ix.Docs, Doc{ID: id, NTok: len(tokens)})
+	}
+
+	for _, k := range ix.scratchKeys {
 		ix.tokScratch[k] = ix.tokScratch[k][:0]
 	}
+	ix.scratchKeys = ix.scratchKeys[:0]
+
 	for pos, tok := range tokens {
+		if len(ix.tokScratch[tok]) == 0 {
+			ix.scratchKeys = append(ix.scratchKeys, tok)
+		}
 		ix.tokScratch[tok] = append(ix.tokScratch[tok], uint32(pos))
 	}
-	for tok, poss := range ix.tokScratch {
+	for _, tok := range ix.scratchKeys {
+		poss := ix.tokScratch[tok]
 		if len(poss) == 0 {
 			continue
 		}
@@ -83,7 +102,6 @@ func (ix *InvIndex) df(tok string) int {
 	return len(ix.postings[tok])
 }
 
-// allDocIDs возвращает [0, 1, …, NumDocs−1]; буфер пересоздаётся только при изменении числа документов.
 func (ix *InvIndex) allDocIDs() []uint32 {
 	n := ix.NumDocs()
 	if len(ix.allIDsBuf) == n {

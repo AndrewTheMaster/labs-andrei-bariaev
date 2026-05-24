@@ -280,7 +280,7 @@ func TestMMapOpenErrors(t *testing.T) {
 
 	// truncation after header/doc-len section
 	var buf bytes.Buffer
-	buf.Write([]byte{'I', 'R', 'I', 'X', 'V', '1', 0, 0})
+	buf.Write([]byte{'I', 'R', 'I', 'X', 'V', '2', 'B', 'P'})
 	buf.Write([]byte{1, 0, 0, 0}) // nDocs=1
 	buf.Write([]byte{1, 0, 0, 0}) // nTerms=1
 	// no doclen and no terms -> truncated

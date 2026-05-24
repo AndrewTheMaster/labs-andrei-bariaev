@@ -2,21 +2,27 @@ goos: linux
 goarch: amd64
 pkg: siaod-hw4-concmap/internal/concmap
 cpu: AMD Eng Sample: 100-000000829-50_Y             
-BenchmarkParallelGetHit/size_4096/concmap-16 	100000000	        11.23 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelGetHit/size_4096/plain-16   	16040287	        43.78 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelGetHit/size_65536/concmap-16         	38427255	        25.88 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelGetHit/size_65536/plain-16           	17007375	        44.68 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelPutOverwrite/size_4096/concmap-16    	50211273	        14.43 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelPutOverwrite/size_4096/plain-16      	 4772830	       148.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelPutOverwrite/size_65536/concmap-16   	28804916	        30.99 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelPutOverwrite/size_65536/plain-16     	 5408331	       147.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelMixedRW/size_4096/concmap-16         	31528929	        24.30 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelMixedRW/size_4096/plain-16           	12053758	        58.97 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelMixedRW/size_65536/concmap-16        	21634238	        38.24 ns/op	       0 B/op	       0 allocs/op
-BenchmarkParallelMixedRW/size_65536/plain-16          	10750132	        65.30 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRangeFullTable/size_4096/concmap-16          	   22215	     32617 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRangeFullTable/size_4096/plain-16            	   20378	     35282 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRangeFullTable/size_65536/concmap-16         	     868	    734148 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRangeFullTable/size_65536/plain-16           	     882	    779573 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelGetHit/size_4096/concmap-16 	100000000	         9.905 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelGetHit/size_4096/plain-16   	 8656299	        85.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelGetHit/size_65536/concmap-16         	58843102	        11.02 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelGetHit/size_65536/plain-16           	 9763760	        69.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelPutOverwrite/size_4096/concmap-16    	67681430	        17.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelPutOverwrite/size_4096/plain-16      	 4757511	       164.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelPutOverwrite/size_65536/concmap-16   	18701474	        33.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelPutOverwrite/size_65536/plain-16     	 3817682	       166.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelMixedRW/size_4096/concmap-16         	49538527	        19.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelMixedRW/size_4096/plain-16           	11371635	        63.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelMixedRW/size_65536/concmap-16        	37802877	        23.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParallelMixedRW/size_65536/plain-16          	 8744019	        78.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_4096/concmap-16        	18780591	        37.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_4096/plain-16          	34640823	        20.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_4096/unsafe-16         	50385783	        13.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_65536/concmap-16       	 5300768	       192.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_65536/plain-16         	16135754	        38.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSequentialGetHit/size_65536/unsafe-16        	28488945	        33.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRangeFullTable/size_4096/concmap-16          	   10000	     65071 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRangeFullTable/size_4096/plain-16            	   17757	     41607 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRangeFullTable/size_65536/concmap-16         	     393	   1737434 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRangeFullTable/size_65536/plain-16           	     766	    956588 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	siaod-hw4-concmap/internal/concmap	15.195s
+ok  	siaod-hw4-concmap/internal/concmap	21.582s

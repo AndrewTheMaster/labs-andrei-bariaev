@@ -84,6 +84,62 @@ func TestPutOverwriteNoSizeIncrease(t *testing.T) {
 	}
 }
 
+func TestResizePreservesKeys(t *testing.T) {
+	// 16 бакетов, load 0.75 → resize после 12-го нового ключа; вставляем 500 уникальных.
+	m := New[string, int](4)
+	for i := 0; i < 500; i++ {
+		key := fmt.Sprintf("k_%d", i)
+		m.Put(key, i)
+	}
+	if m.Size() != 500 {
+		t.Fatalf("Size want 500 got %d", m.Size())
+	}
+	if m.BucketCount() < 256 {
+		t.Fatalf("expected growth after resize, buckets=%d", m.BucketCount())
+	}
+	for i := 0; i < 500; i++ {
+		key := fmt.Sprintf("k_%d", i)
+		v, ok := m.Get(key)
+		if !ok || v != i {
+			t.Fatalf("Get after resize key=%q got %v %v", key, v, ok)
+		}
+	}
+}
+
+func TestResizeMatchesUnsafeOracle(t *testing.T) {
+	ref := NewUnsafe[string, int]()
+	m := New[string, int](3) // 8 бакетов, частые rehash
+	r := rand.NewPCG(11, 22)
+	const ops = 3000
+
+	for i := 0; i < ops; i++ {
+		key := fmt.Sprintf("r_%d", r.Uint64()%200)
+		switch r.Uint64() % 4 {
+		case 0:
+			v := int(r.Uint64() % 100)
+			ref.Put(key, v)
+			m.Put(key, v)
+		case 1:
+			want, wok := ref.Get(key)
+			got, gok := m.Get(key)
+			if wok != gok || (wok && got != want) {
+				t.Fatalf("Get drift key=%q", key)
+			}
+		case 2:
+			d := int(r.Uint64()%5) + 1
+			want := ref.Merge(key, d, func(a, b int) int { return a + b })
+			got := m.Merge(key, d, func(a, b int) int { return a + b })
+			if got != want {
+				t.Fatalf("Merge drift key=%q want=%v got=%v", key, want, got)
+			}
+		default:
+			if ref.Size() != m.Size() {
+				t.Fatalf("Size drift want %d got %d", ref.Size(), m.Size())
+			}
+		}
+	}
+}
+
 func TestHappensBeforePutGet(t *testing.T) {
 	m := New[string, int](4)
 	var wg sync.WaitGroup

@@ -67,7 +67,7 @@
 
 | Файл | Назначение |
 |:-----|:-----------|
-| [`internal/concmap/map.go`](internal/concmap/map.go) | `Map`, `New`, `Put`, `Get`, `Merge`, `Clear`, `Size`, `Range`, `WithHasher` |
+| [`internal/concmap/map.go`](internal/concmap/map.go) | `Map`, `New`, `Put`, `Get`, `Merge`, `Clear`, `Size`, `Range`, `WithHasher`, `WithLoadFactor`, rehash (resize) |
 | [`internal/concmap/plain.go`](internal/concmap/plain.go) | `Plain` — глобальный `RWMutex` + `map` |
 | [`internal/concmap/unsafe.go`](internal/concmap/unsafe.go) | `Unsafe` — `map` без mutex (только однопоточно) |
 | [`internal/concmap/hasher.go`](internal/concmap/hasher.go) | reflect-хэш для общих `K` |
@@ -84,9 +84,11 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 ### 2.2 `Map` — основная структура
 
 - бакет: `sync.RWMutex` + односвязный список `node`;
-- `Get` / `Range` — `RLock` **только своего** бакета;
+- активная таблица — `atomic.Pointer[segmentTable]` (бакеты + `mask`); при **resize** выделяется таблица в 2× больше, узлы перехешируются, указатель атомарно подменяется;
+- **load factor** по умолчанию **0.75** (`WithLoadFactor`): после вставки нового ключа, если `size > 0.75 · len(buckets)` и `bucketBits < max`, вызывается `resize` под `resizeMu` (один rehash за раз; все старые бакеты блокируются слева направо, как в `Clear`);
+- `Get` / `Range` — `RLock` **только своего** бакета (снимок таблицы на момент вызова);
 - `Put` / `Merge` — `Lock` бакета; `Size` — `atomic.Uint64` (+1 только при вставке нового ключа);
-- `Clear` — последовательный захват всех бакетов слева направо (анти-deadlock), обнуление цепочек и `size.Store(0)`;
+- `Clear` — под `resizeMu` + последовательный захват всех бакетов слева направо (анти-deadlock), обнуление цепочек и `size.Store(0)`;
 - `Range` — слабая согласованность (weakly-consistent view): без паник при конкурентных изменениях, без гарантии «снимка всей таблицы».
 
 ---
@@ -109,22 +111,22 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 
 | workload | impl | keys | ns/op |
 |:---------|:-----|-----:|------:|
-| ParallelGetHit | concmap | 4096 | 11.23 |
-| ParallelGetHit | plain | 4096 | 43.78 |
-| ParallelGetHit | concmap | 65536 | 25.88 |
-| ParallelGetHit | plain | 65536 | 44.68 |
-| ParallelPutOverwrite | concmap | 4096 | 14.43 |
-| ParallelPutOverwrite | plain | 4096 | 148.10 |
-| ParallelPutOverwrite | concmap | 65536 | 30.99 |
-| ParallelPutOverwrite | plain | 65536 | 147.60 |
-| ParallelMixedRW | concmap | 4096 | 24.30 |
-| ParallelMixedRW | plain | 4096 | 58.97 |
-| ParallelMixedRW | concmap | 65536 | 38.24 |
-| ParallelMixedRW | plain | 65536 | 65.30 |
-| RangeFullTable | concmap | 4096 | 32617 |
-| RangeFullTable | plain | 4096 | 35282 |
-| RangeFullTable | concmap | 65536 | 734148 |
-| RangeFullTable | plain | 65536 | 779573 |
+| ParallelGetHit | concmap | 4096 | 9.91 |
+| ParallelGetHit | plain | 4096 | 85.61 |
+| ParallelGetHit | concmap | 65536 | 11.02 |
+| ParallelGetHit | plain | 65536 | 69.26 |
+| ParallelPutOverwrite | concmap | 4096 | 17.60 |
+| ParallelPutOverwrite | plain | 4096 | 164.8 |
+| ParallelPutOverwrite | concmap | 65536 | 33.90 |
+| ParallelPutOverwrite | plain | 65536 | 166.5 |
+| ParallelMixedRW | concmap | 4096 | 19.42 |
+| ParallelMixedRW | plain | 4096 | 63.23 |
+| ParallelMixedRW | concmap | 65536 | 23.73 |
+| ParallelMixedRW | plain | 65536 | 78.45 |
+| RangeFullTable | concmap | 4096 | 65071 |
+| RangeFullTable | plain | 4096 | 41607 |
+| RangeFullTable | concmap | 65536 | 1737434 |
+| RangeFullTable | plain | 65536 | 956588 |
 
 #### Рисунок 3.1 — Parallel Get-hit
 
@@ -163,9 +165,9 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 
 | impl | ns/op |
 |:-----|------:|
-| unsafe | 28.4 |
-| plain | 42.5 |
-| concmap | 85.9 |
+| unsafe | 13.5 |
+| plain | 20.6 |
+| concmap | 37.2 |
 
 **Анализ:** в **однопотоке** `unsafe` быстрее всех; `plain` обгоняет `concmap`, потому что встроенная `map` O(1) против обхода цепочки. Выигрыш `concmap` проявляется в **§3.3** при `RunParallel`, когда `Plain` блокирует всех читателей на любой записи. Полный прогон: `make collect`.
 
@@ -181,6 +183,7 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 4. **`TestStressMergeAdditiveRace`** — параллельное суммирование через `Merge` vs эталон под `mutex`.
 5. **`TestStressPlainVsConcNoPanicRace`** — хаотичный микс `Put`/`Get`/`Merge`/`Range`/`Clear` из 32 горутин.
 6. **`TestHappensBeforePutGet`**, **`TestSizeZeroAfterClearConcurrent`**.
+7. **`TestResizePreservesKeys`**, **`TestResizeMatchesUnsafeOracle`** — корректность rehash при частых удвоениях таблицы.
 
 ---
 
@@ -230,10 +233,11 @@ HTML: [`flamegraph_mem_parallel_get_conc.html`](metrics/plots/flamegraph_mem_par
 ## 6. Вывод
 
 1. Реализована сегментированная hash-map с **закрытой адресацией** и API по ТЗ; чтения локализуют блокировки на бакет.
-2. Три уровня сравнения: **`Unsafe`** (не-thread-safe), **`Plain`** (глобальный mutex), **`Map`** (per-bucket) — покрывают и требование ТЗ, и параллельные бенчи.
-3. На параллельных нагрузках `Map` в **3–10×** быстрее `Plain`; узкое место — обход цепочек и сравнение ключей (видно на flamegraph).
-4. Корректность: **`-race`**, оракул-тесты против `Unsafe`, стресс `Merge` и смешанных операций.
-5. Ограничения: фиксированное число бакетов (нет rehash), `Size` при гонках с `Clear` — как у CHM, без строгого снимка.
+2. Добавлен **rehash (resize)** при load factor 0.75: удвоение числа бакетов, перенос цепочек, атомарная подмена таблицы.
+3. Три уровня сравнения: **`Unsafe`** (не-thread-safe), **`Plain`** (глобальный mutex), **`Map`** (per-bucket) — покрывают и требование ТЗ, и параллельные бенчи.
+4. На параллельных нагрузках `Map` в **~4–10×** быстрее `Plain`; узкое место — обход цепочек, хеш и `RLock` (видно на flamegraph; `resize` на Get-бенче — доли процента CPU при прогреве).
+5. Корректность: **`-race`**, оракул-тесты против `Unsafe`, стресс `Merge`, тесты resize.
+6. Ограничения: resize блокирует все старые бакеты (упрощение относительно JDK CHM), `Size` при гонках с `Clear` — как у CHM, без строгого снимка.
 
 | Сценарий | Рекомендация |
 |:---------|:-------------|

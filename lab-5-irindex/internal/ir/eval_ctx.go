@@ -2,13 +2,18 @@ package ir
 
 // EvalCtx выполняет Eval с буферами docID (меньше аллокаций на AND/OR/NOT).
 type EvalCtx struct {
-	ix          *InvIndex
-	tmp, work   []uint32
-	out         []uint32
+	ix  PostingIndex
+	ram *InvIndex
+	tmp, work []uint32
+	out       []uint32
 }
 
-func NewEvalCtx(ix *InvIndex) *EvalCtx {
-	return &EvalCtx{ix: ix}
+func NewEvalCtx(ix PostingIndex) *EvalCtx {
+	c := &EvalCtx{ix: ix}
+	if inv, ok := ix.(*InvIndex); ok {
+		c.ram = inv
+	}
+	return c
 }
 
 func (c *EvalCtx) Reset() {
@@ -27,7 +32,7 @@ func (c *EvalCtx) eval(n Node) []uint32 {
 	case *Term:
 		return c.postingDocIDs(t.Lex)
 	case *Not:
-		all := append(c.work[:0], c.ix.allDocIDs()...)
+		all := append(c.work[:0], c.ix.AllDocIDs()...)
 		child := append(c.tmp[:0], c.eval(t.Child)...)
 		return subtractSortedInto(c.out[:0], all, child)
 	case *And:
@@ -41,7 +46,10 @@ func (c *EvalCtx) eval(n Node) []uint32 {
 	case *Adj:
 		return evalAdj(c.ix, t.A, t.B)
 	case *MSM:
-		return evalMSM(c.ix, t.W, t.Terms)
+		if c.ram == nil {
+			return nil
+		}
+		return evalMSM(c.ram, t.W, t.Terms)
 	case *EdgeStart:
 		return edgeStart(c.ix, t.Lex)
 	case *EdgeEnd:
@@ -71,11 +79,11 @@ func (c *EvalCtx) evalAnd(children []Node) []uint32 {
 }
 
 func (c *EvalCtx) postingDocIDs(term string) []uint32 {
-	ps := c.ix.Postings(term)
-	c.tmp = c.tmp[:0]
-	if len(ps) == 0 {
+	ps, err := c.ix.LookupPostings(term)
+	if err != nil || len(ps) == 0 {
 		return nil
 	}
+	c.tmp = c.tmp[:0]
 	for i := range ps {
 		c.tmp = append(c.tmp, ps[i].DocID)
 	}

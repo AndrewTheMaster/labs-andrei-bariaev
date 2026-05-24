@@ -1,13 +1,21 @@
 BENCH_CORPUS ?= 400,2000
 BENCH_TIME   ?= 500ms
-BENCH_FILTER ?= ^Benchmark(BuildIndex|Query)
+BENCH_FILTER ?= ^Benchmark(BuildIndex|Query|Op)
 METRICS_OUT  ?= metrics
 RAW_DIR      := $(METRICS_OUT)/raw
 PLOT_DIR     := $(METRICS_OUT)/plots
 PROF_DIR     := $(METRICS_OUT)/profiles
-WIKI_XML     ?= data/ruwiki-latest-pages-articles.xml
+WIKI_XML     ?= ../ruwiki-latest-pages-articles.xml
 
-.PHONY: test bench collect metrics plot profile build-index clean
+.PHONY: test bench collect metrics plot profile build-index build query clean
+
+build:
+	go build -o bin/irindex ./cmd/irindex
+	go build -o bin/irquery ./cmd/irquery
+
+query:
+	@test -f data/index.irx || $(MAKE) build-index
+	./bin/irquery -index data/index.irx
 
 test:
 	go test ./...
@@ -43,6 +51,9 @@ collect:
 	    split(tail, u, "_"); \
 	    if (length(u) < 3) next; \
 	    mode=u[1] "_" u[2]; corpus=u[3]+0; \
+	  } else if (bench == "BenchmarkOp") { \
+	    if (n < 4) next; \
+	    mode=a[2] "_" a[3]; sub(/^corp/, "", a[4]); corpus=a[4]+0; \
 	  } else next; \
 	  iters=$$2; ns=0; bpb=0; \
 	  for (i=2; i<=NF; i++) { \

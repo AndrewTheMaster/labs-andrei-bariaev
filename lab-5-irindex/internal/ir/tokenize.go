@@ -3,29 +3,33 @@ package ir
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
-// Tokenize — простая выделение токенов [a-z0-9]+ + lower ASCII.
+// Tokenize — токены [буквы/цифры]+ в lower case (UTF-8, в т.ч. кириллица).
 func Tokenize(text string) []string {
 	var out []string
 	i := 0
 	for i < len(text) {
-		for i < len(text) && !isTokRune(text[i]) {
-			i++
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if !isTokRune(r) {
+			i += size
+			continue
 		}
-		j := i
-		for j < len(text) && isTokRune(text[j]) {
-			j++
+		j := i + size
+		for j < len(text) {
+			r2, sz := utf8.DecodeRuneInString(text[j:])
+			if !isTokRune(r2) {
+				break
+			}
+			j += sz
 		}
-		if i < j {
-			out = append(out, strings.ToLower(text[i:j]))
-		}
+		out = append(out, strings.ToLower(text[i:j]))
 		i = j
 	}
 	return out
 }
 
-func isTokRune(b byte) bool {
-	r := rune(b)
+func isTokRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }

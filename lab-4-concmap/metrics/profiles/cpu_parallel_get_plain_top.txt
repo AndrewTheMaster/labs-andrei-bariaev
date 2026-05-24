@@ -1,17 +1,25 @@
 File: concmap.test
-Build ID: 9c31420a4119fdb1209821a8d8475c4832e87ebc
+Build ID: 8cd9423345167f3679be08a02571e845ca890674
 Type: cpu
-Time: 2026-05-02 18:04:57 MSK
-Duration: 1.26s, Total samples = 14.68s (1164.43%)
-Showing nodes accounting for 14.39s, 98.02% of 14.68s total
-Dropped 51 nodes (cum <= 0.07s)
+Time: 2026-05-24 21:49:34 MSK
+Duration: 1.36s, Total samples = 14.95s (1097.40%)
+Showing nodes accounting for 14.77s, 98.80% of 14.95s total
+Dropped 43 nodes (cum <= 0.07s)
       flat  flat%   sum%        cum   cum%
-    11.18s 76.16% 76.16%     11.20s 76.29%  sync/atomic.(*Int32).Add (inline)
-     1.76s 11.99% 88.15%     14.14s 96.32%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Get
-     0.45s  3.07% 91.21%      0.45s  3.07%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
-     0.42s  2.86% 94.07%     14.60s 99.46%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2.1
-     0.37s  2.52% 96.59%      1.09s  7.43%  runtime.mapaccess2_faststr
-     0.13s  0.89% 97.48%      0.13s  0.89%  aeshashbody
-     0.07s  0.48% 97.96%      5.72s 38.96%  sync.(*RWMutex).RUnlock
-     0.01s 0.068% 98.02%      5.56s 37.87%  sync.(*RWMutex).RLock (inline)
-         0     0% 98.02%     14.60s 99.46%  testing.(*B).RunParallel.func1
+    11.38s 76.12% 76.12%     11.46s 76.66%  sync/atomic.(*Int32).Add (inline)
+     1.48s  9.90% 86.02%     14.27s 95.45%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Get
+     0.48s  3.21% 89.23%     14.77s 98.80%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2.1
+     0.47s  3.14% 92.37%      0.47s  3.14%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
+     0.42s  2.81% 95.18%      1.24s  8.29%  runtime.mapaccess2_faststr
+     0.23s  1.54% 96.72%      0.23s  1.54%  aeshashbody
+     0.11s  0.74% 97.46%      0.11s  0.74%  internal/runtime/maps.(*Map).directoryAt (inline)
+     0.10s  0.67% 98.13%      5.43s 36.32%  sync.(*RWMutex).RUnlock
+     0.09s   0.6% 98.73%      0.09s   0.6%  runtime.asyncPreempt
+     0.01s 0.067% 98.80%      0.10s  0.67%  runtime.mapassign_faststr
+         0     0% 98.80%      0.13s  0.87%  siaod-hw4-concmap/internal/concmap.(*Plain[go.shape.string,go.shape.int]).Put
+         0     0% 98.80%      0.13s  0.87%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.2
+         0     0% 98.80%      0.13s  0.87%  siaod-hw4-concmap/internal/concmap.fillPlain
+         0     0% 98.80%      6.12s 40.94%  sync.(*RWMutex).RLock (inline)
+         0     0% 98.80%     14.77s 98.80%  testing.(*B).RunParallel.func1
+         0     0% 98.80%      0.10s  0.67%  testing.(*B).launch
+         0     0% 98.80%      0.14s  0.94%  testing.(*B).runN

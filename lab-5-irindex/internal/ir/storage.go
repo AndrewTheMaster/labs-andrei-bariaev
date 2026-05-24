@@ -3,13 +3,17 @@ package ir
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"syscall"
 )
 
-var fileMagic = [8]byte{'I', 'R', 'I', 'X', 'V', '1', 0, 0}
+// IRIX V2: delta + bit-packing (вместо varint).
+var fileMagic = [8]byte{'I', 'R', 'I', 'X', 'V', '2', 'B', 'P'}
+
+var errBitpackTrunc = errors.New("bitpack: truncated stream")
 
 type termMeta struct {
 	off uint64
@@ -36,88 +40,143 @@ func writeU16(buf *bytes.Buffer, v uint16) {
 	buf.Write(b[:])
 }
 
-func putUvarint(buf *bytes.Buffer, v uint64) {
-	var b [10]byte
-	n := binary.PutUvarint(b[:], v)
-	buf.Write(b[:n])
-}
-
+// encodePostings: docID (первый абсолютный, остальные delta), tf, позиции (delta) — bit-packing по потокам.
 func encodePostings(ps []posting) []byte {
 	var buf bytes.Buffer
-	putUvarint(&buf, uint64(len(ps)))
+	writeU32(&buf, uint32(len(ps)))
+	if len(ps) == 0 {
+		return buf.Bytes()
+	}
+
+	docVals := make([]uint32, len(ps))
+	tfVals := make([]uint32, len(ps))
+	var posVals []uint32
 	var prevDoc uint32
 	for i, p := range ps {
 		if i == 0 {
-			putUvarint(&buf, uint64(p.DocID))
+			docVals[i] = p.DocID
 		} else {
-			putUvarint(&buf, uint64(p.DocID-prevDoc))
+			docVals[i] = p.DocID - prevDoc
 		}
 		prevDoc = p.DocID
-		putUvarint(&buf, uint64(len(p.Poss)))
+		tfVals[i] = uint32(len(p.Poss))
 		var prevPos uint32
 		for j, pos := range p.Poss {
 			if j == 0 {
-				putUvarint(&buf, uint64(pos))
+				posVals = append(posVals, pos)
 			} else {
-				putUvarint(&buf, uint64(pos-prevPos))
+				posVals = append(posVals, pos-prevPos)
 			}
 			prevPos = pos
 		}
 	}
+
+	docBits, docPay := packUint32Stream(docVals)
+	tfBits, tfPay := packUint32Stream(tfVals)
+	posBits, posPay := packUint32Stream(posVals)
+
+	buf.WriteByte(docBits)
+	buf.WriteByte(tfBits)
+	buf.WriteByte(posBits)
+	buf.WriteByte(0)
+	writeU32(&buf, uint32(len(docPay)))
+	buf.Write(docPay)
+	writeU32(&buf, uint32(len(tfPay)))
+	buf.Write(tfPay)
+	writeU32(&buf, uint32(len(posPay)))
+	buf.Write(posPay)
 	return buf.Bytes()
 }
 
-func readUvarintAt(data []byte, i *int) (uint64, error) {
-	v, n := binary.Uvarint(data[*i:])
-	if n <= 0 {
-		return 0, fmt.Errorf("bad varint at %d", *i)
-	}
-	*i += n
-	return v, nil
-}
-
 func decodePostings(data []byte) ([]posting, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("postings block too small")
+	}
 	i := 0
-	nPost, err := readUvarintAt(data, &i)
+	nPost := int(binary.LittleEndian.Uint32(data[i : i+4]))
+	i += 4
+	if nPost == 0 {
+		return nil, nil
+	}
+	if len(data) < i+4 {
+		return nil, fmt.Errorf("postings header truncated")
+	}
+	docBits := data[i]
+	tfBits := data[i+1]
+	posBits := data[i+2]
+	i += 4
+
+	readChunk := func() ([]byte, error) {
+		if len(data) < i+4 {
+			return nil, fmt.Errorf("postings chunk len truncated")
+		}
+		ln := int(binary.LittleEndian.Uint32(data[i : i+4]))
+		i += 4
+		if len(data) < i+ln {
+			return nil, fmt.Errorf("postings chunk truncated")
+		}
+		chunk := data[i : i+ln]
+		i += ln
+		return chunk, nil
+	}
+
+	docPay, err := readChunk()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]posting, 0, int(nPost))
+	tfPay, err := readChunk()
+	if err != nil {
+		return nil, err
+	}
+	posPay, err := readChunk()
+	if err != nil {
+		return nil, err
+	}
+
+	docDeltas, err := unpackUint32Stream(docBits, docPay, nPost)
+	if err != nil {
+		return nil, err
+	}
+	tfVals, err := unpackUint32Stream(tfBits, tfPay, nPost)
+	if err != nil {
+		return nil, err
+	}
+	nPos := 0
+	for _, tf := range tfVals {
+		nPos += int(tf)
+	}
+	posDeltas, err := unpackUint32Stream(posBits, posPay, nPos)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]posting, 0, nPost)
+	posIdx := 0
 	var prevDoc uint32
-	for pidx := 0; pidx < int(nPost); pidx++ {
-		delta, err := readUvarintAt(data, &i)
-		if err != nil {
-			return nil, err
-		}
-		doc := uint32(delta)
+	for pidx := 0; pidx < nPost; pidx++ {
+		doc := docDeltas[pidx]
 		if pidx > 0 {
-			doc = prevDoc + uint32(delta)
+			doc = prevDoc + doc
 		}
 		prevDoc = doc
-		tf, err := readUvarintAt(data, &i)
-		if err != nil {
-			return nil, err
-		}
-		poss := make([]uint32, int(tf))
+		tf := int(tfVals[pidx])
+		poss := make([]uint32, tf)
 		var prevPos uint32
-		for j := 0; j < int(tf); j++ {
-			d, err := readUvarintAt(data, &i)
-			if err != nil {
-				return nil, err
-			}
-			pos := uint32(d)
+		for j := 0; j < tf; j++ {
+			pos := posDeltas[posIdx]
 			if j > 0 {
-				pos = prevPos + uint32(d)
+				pos = prevPos + pos
 			}
 			prevPos = pos
 			poss[j] = pos
+			posIdx++
 		}
 		out = append(out, posting{DocID: doc, Poss: poss})
 	}
 	return out, nil
 }
 
-// SaveCompressed сохраняет индекс в бинарном формате (delta+varint).
+// SaveCompressed сохраняет индекс в бинарном формате (delta + bit-packing).
 func SaveCompressed(ix *InvIndex, path string) error {
 	var buf bytes.Buffer
 	buf.Write(fileMagic[:])
@@ -233,6 +292,10 @@ func (mi *MMapIndex) NumDocs() int {
 	return len(mi.docLens)
 }
 
+func (mi *MMapIndex) Terms() int {
+	return len(mi.terms)
+}
+
 func (mi *MMapIndex) DocLen(id uint32) int {
 	if int(id) >= len(mi.docLens) {
 		return 0
@@ -256,4 +319,18 @@ func (mi *MMapIndex) Postings(term string) ([]posting, error) {
 	start := int(md.off)
 	end := start + int(md.ln)
 	return decodePostings(mi.data[start:end])
+}
+
+func (mi *MMapIndex) LookupPostings(term string) ([]posting, error) {
+	return mi.Postings(term)
+}
+
+// AllDocIDs — [0 .. NumDocs-1] для NOT на mmap-индексе.
+func (mi *MMapIndex) AllDocIDs() []uint32 {
+	n := mi.NumDocs()
+	ids := make([]uint32, n)
+	for i := range ids {
+		ids[i] = uint32(i)
+	}
+	return ids
 }

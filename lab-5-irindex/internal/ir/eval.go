@@ -147,20 +147,24 @@ func subtractSortedInto(out, a, minus []uint32) []uint32 {
 
 // Eval выполняет булеву модель документов над индексом.
 func Eval(ix *InvIndex, n Node) MatchSet {
-	ctx := NewEvalCtx(ix)
-	return ctx.Eval(n)
+	return NewEvalCtx(ix).Eval(n)
+}
+
+// EvalIndex — Eval для RAM или mmap.
+func EvalIndex(ix PostingIndex, n Node) MatchSet {
+	return NewEvalCtx(ix).Eval(n)
 }
 
 func eval(ix *InvIndex, n Node) []uint32 {
 	return Eval(ix, n)
 }
 
-func evalNear(ix *InvIndex, k int, a, b string) []uint32 {
+func evalNear(ix PostingIndex, k int, a, b string) []uint32 {
 	if k < 0 {
 		k = 0
 	}
-	da := ix.Postings(a)
-	db := ix.Postings(b)
+	da, _ := ix.LookupPostings(a)
+	db, _ := ix.LookupPostings(b)
 	var out []uint32
 
 	i, j := 0, 0
@@ -185,9 +189,9 @@ func evalNear(ix *InvIndex, k int, a, b string) []uint32 {
 	return out
 }
 
-func evalAdj(ix *InvIndex, a, b string) []uint32 {
-	da := ix.Postings(a)
-	db := ix.Postings(b)
+func evalAdj(ix PostingIndex, a, b string) []uint32 {
+	da, _ := ix.LookupPostings(a)
+	db, _ := ix.LookupPostings(b)
 	var out []uint32
 	i, j := 0, 0
 	for i < len(da) && j < len(db) {
@@ -211,8 +215,8 @@ func evalAdj(ix *InvIndex, a, b string) []uint32 {
 	return out
 }
 
-func edgeStart(ix *InvIndex, term string) []uint32 {
-	ps := ix.Postings(term)
+func edgeStart(ix PostingIndex, term string) []uint32 {
+	ps, _ := ix.LookupPostings(term)
 	var out []uint32
 	for _, p := range ps {
 		if len(p.Poss) > 0 && p.Poss[0] == 0 {
@@ -225,10 +229,11 @@ func edgeStart(ix *InvIndex, term string) []uint32 {
 	return out
 }
 
-func edgeEnd(ix *InvIndex, term string) []uint32 {
+func edgeEnd(ix PostingIndex, term string) []uint32 {
 	var out []uint32
-	for _, p := range ix.Postings(term) {
-		last := ix.docLen(p.DocID) - 1
+	ps, _ := ix.LookupPostings(term)
+	for _, p := range ps {
+		last := ix.DocLen(p.DocID) - 1
 		if last < 0 {
 			continue
 		}
