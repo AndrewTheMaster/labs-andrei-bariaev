@@ -49,8 +49,8 @@ func main() {
 	fmt.Printf("docs:           %d\n", report.Docs)
 	fmt.Printf("terms:          %d\n", report.Terms)
 	fmt.Printf("postings lists: %d\n", report.PostingsLists)
-	fmt.Printf("raw RAM est:    %.2f MiB\n", float64(report.RawBytes)/(1024*1024))
-	fmt.Printf("compressed:     %.2f MiB (%s)\n", float64(report.CompressedBytes)/(1024*1024), report.CompressedPath)
+	fmt.Printf("raw RAM est:    %.0f KB\n", float64(report.RawBytes)/1024)
+	fmt.Printf("compressed:     %.0f KB (%s)\n", float64(report.CompressedBytes)/1024, report.CompressedPath)
 	if report.CompressedBytes > 0 {
 		fmt.Printf("ratio raw/comp: %.2fx\n", report.Ratio)
 	}
