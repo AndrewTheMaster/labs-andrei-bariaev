@@ -231,6 +231,19 @@ func TestCompressedMMapRoundtrip(t *testing.T) {
 	}
 }
 
+func TestIndexSizesOnSynthetic(t *testing.T) {
+	for _, n := range []int{400, 2000} {
+		ix := fillCorpus(n, 4242, defaultWords())
+		tmp := filepath.Join(t.TempDir(), "index.irx")
+		r, err := MeasureIndexSizes(ix, tmp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("N=%d docs=%d terms=%d postings=%d raw_bytes=%d compressed_bytes=%d ratio=%.2f",
+			n, r.Docs, r.Terms, r.PostingsLists, r.RawBytes, r.CompressedBytes, r.Ratio)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	bad := []string{
 		`ADJ(alpha beta)`,
