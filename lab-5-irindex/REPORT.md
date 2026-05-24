@@ -1,7 +1,7 @@
 # Лабораторная работа №5 — Обратный индекс, булевы запросы, mmap, сжатие, TF/IDF(BM25)
 
 **Дисциплина:** Структуры и алгоритмы в базах данных и распределённых системах  
-**Тема:** Инвертированный индекс с позициями; операторы **AND / OR / NOT**, **ADJ**, **NEAR**, границы документа (**«edge»**); хранение с mmap и сжатием; ранжирование **BM25** поверх булева фильтра.
+**Тема:** Инвертированный индекс с позициями; операторы **AND / OR / NOT**, **ADJ**, **NEAR**, границы документа (**«edge»**); хранение с mmap и сжатием (**delta + bit-packing**); ранжирование **BM25**; консольный стенд запросов по mmap-индексу.
 
 ---
 
@@ -21,23 +21,24 @@
 
 ### Соответствие ТЗ (чеклист)
 
-- **1) Координатный индекс + булевы операции + ADJ/NEAR**: [`internal/ir/index.go`](internal/ir/index.go), [`internal/ir/eval.go`](internal/ir/eval.go), [`internal/ir/ast.go`](internal/ir/ast.go).  
-  `AND` — `intersectSortedSkip` ([`eval.go`](internal/ir/eval.go) **26–74**).
-- **2) Сложные запросы**: [`internal/ir/parse.go`](internal/ir/parse.go) (`NOT > AND > OR`, `NEAR`/`ADJ`/`FIRST`/`LAST`).
-- **3) Дисковый индекс + mmap**: [`storage.go`](internal/ir/storage.go) `SaveCompressed`, `OpenMMapIndex` (**148–259**).
-- **4) Сжатие**: delta + varint, [`encodePostings`](internal/ir/storage.go) **45–118**.
+- **1) Координатный индекс + булевы операции + ADJ/NEAR**: [`index.go`](internal/ir/index.go), [`eval.go`](internal/ir/eval.go), [`ast.go`](internal/ir/ast.go). `AND` — `intersectSortedSkip` ([`eval.go`](internal/ir/eval.go)).
+- **2) Сложные запросы**: [`parse.go`](internal/ir/parse.go) (`NOT > AND > OR`, `NEAR`/`ADJ`/`FIRST`/`LAST`).
+- **3) Дисковый индекс + mmap**: [`storage.go`](internal/ir/storage.go) `SaveCompressed`, `OpenMMapIndex`.
+- **4) Сжатие**: delta + **bit-packing** (`IRIXV2BP`), [`encodePostings`](internal/ir/storage.go), [`bitpack.go`](internal/ir/bitpack.go).
 - **5) BM25**: [`bm25.go`](internal/ir/bm25.go), [`collect.go`](internal/ir/collect.go).
 - **6) Бенчмарки**: [`benchmark_test.go`](internal/ir/benchmark_test.go), `Makefile`, `metrics/`.
+- **7) Стенд запросов**: [`cmd/irquery`](cmd/irquery/main.go) — REPL / `-q` по `.irx`.
 
-| Требование (замечания) | Где в коде | Как проверено |
-|:-----------------------|:-----------|:--------------|
-| Меньше аллокаций при сборке (общий буфер позиций) | `posArena`, `tokScratch` — [`index.go`](internal/ir/index.go) **40–63** | табл. 4.2, §6.4 |
-| Переиспользование буферов на запросах (без `map` на AND/OR/NOT) | `EvalCtx` — [`eval_ctx.go`](internal/ir/eval_ctx.go) **4–84** | табл. 4.2–4.3, §6.2 |
-| mmap дискового индекса | `OpenMMapIndex` — [`storage.go`](internal/ir/storage.go) **148–174** | `TestCompressedMMapRoundtrip` |
-| Одинаковые интервалы корпуса | `BENCH_CORPUS=400,2000` — все бенчи | табл. 3.1 |
-| Операторы по отдельности | `BenchmarkOp` — [`benchmark_test.go`](internal/ir/benchmark_test.go) **96–135** | табл. 4.3 |
-| Размер индекса до/после сжатия | `MeasureIndexSizes` — [`stats.go`](internal/ir/stats.go) **44–64** | **табл. 4.1** |
-| Построение индекса | `BenchmarkBuildIndex` | табл. 4.2 |
+| Требование | Где в коде | Как проверено |
+|:-----------|:-----------|:--------------|
+| Буфер позиций при сборке | `posArena`, `scratchKeys` — [`index.go`](internal/ir/index.go) | табл. 4.2, §6.4 |
+| Сборка вики без копии текстов | `AddLean` — [`index.go`](internal/ir/index.go) | табл. 4.1б, `irindex` |
+| Буферы на запросах | `EvalCtx`, `PostingIndex` — [`eval_ctx.go`](internal/ir/eval_ctx.go) | табл. 4.3–4.4, §6.2 |
+| mmap | `OpenMMapIndex` — [`storage.go`](internal/ir/storage.go) | `TestCompressedMMapRoundtrip`, `irquery` |
+| Интервалы `BENCH_CORPUS` | `400,2000` синтетика | табл. 3.1, 4.4–4.5 |
+| Операторы по отдельности | `BenchmarkOp` | табл. 4.5 |
+| Размер до/после сжатия | `MeasureIndexSizes`, `irindex` | **табл. 4.1а–4.1б** |
+| Построение на корпусе | `irindex -maxdocs 20000` | **табл. 4.1б** |
 
 ---
 
@@ -47,16 +48,25 @@
 
 | Файл | Назначение |
 |:-----|:-----------|
-| [`internal/ir/index.go`](internal/ir/index.go) | `InvIndex`, `Add`, `posArena` (**51–60**), `tokScratch` |
-| [`internal/ir/ast.go`](internal/ir/ast.go) | AST: `Term`, `Not`, `And`, `Or`, `Near`, `Adj`, границы |
-| [`internal/ir/parse.go`](internal/ir/parse.go) | парсер, `Parse` (**339–357**) |
-| [`internal/ir/eval.go`](internal/ir/eval.go) | `intersectSortedSkip`, ADJ/NEAR/MSM, `Eval` (**149–152**) |
-| [`internal/ir/eval_ctx.go`](internal/ir/eval_ctx.go) | `EvalCtx`, `intersectSortedSkipInto` |
-| [`internal/ir/scan.go`](internal/ir/scan.go) | `SlowEval` (**4–15**) |
-| [`internal/ir/bm25.go`](internal/ir/bm25.go) | BM25 |
-| [`internal/ir/search.go`](internal/ir/search.go) | `SearchBoolEval`, `SearchBM25` |
-| [`internal/ir/storage.go`](internal/ir/storage.go) | `SaveCompressed`, `OpenMMapIndex`, mmap |
-| [`internal/ir/stats.go`](internal/ir/stats.go) | `EstimateIndexBytes`, `MeasureIndexSizes` |
+| [`internal/ir/index.go`](internal/ir/index.go) | `InvIndex`, `Add` / `AddLean`, `posArena`, `scratchKeys` |
+| [`internal/ir/bitpack.go`](internal/ir/bitpack.go) | упаковка потоков uint32 |
+| [`internal/ir/storage.go`](internal/ir/storage.go) | `SaveCompressed`, `OpenMMapIndex`, формат `IRIXV2BP` |
+| [`internal/ir/corpus.go`](internal/ir/corpus.go) | `BuildIndexFromWikiXML`, UTF-8 `Tokenize` |
+| [`internal/ir/tokenize.go`](internal/ir/tokenize.go) | токены (латиница + кириллица) |
+| [`internal/ir/eval.go`](internal/ir/eval.go), [`eval_ctx.go`](internal/ir/eval_ctx.go) | оценка, `EvalIndex` / mmap |
+| [`internal/ir/search_mmap.go`](internal/ir/search_mmap.go) | `SearchBoolMMap` |
+| [`cmd/irindex`](cmd/irindex/main.go) | построение `.irx` из XML |
+| [`cmd/irquery`](cmd/irquery/main.go) | консольный стенд запросов |
+
+### Консольный стенд (`irquery`)
+
+```bash
+go build -o bin/irquery ./cmd/irquery
+./bin/irquery -index data/index.irx
+./bin/irquery -index data/index.irx -q 'россия AND город' -limit 20
+```
+
+Запросы выполняются по **mmap**-индексу (`SearchBoolMMap`). **MSM(...)** на `.irx` недоступен (тексты документов на диск не пишутся).
 
 ---
 
@@ -64,49 +74,64 @@
 
 ```bash
 make test
-make collect plot
+make collect plot          # синтетика BENCH_CORPUS=400,2000
 make profile
+
+# индекс и размеры на ruwiki:
+go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 20000 -out data/index.irx
 ```
 
-### 3.1 Единые интервалы и сценарии
+### 3.1 Корпуса
 
-| Параметр | Значение |
-|:---------|:---------|
-| Корпус | синтетика `fillCorpus`, ~96 символов/док |
-| **`BENCH_CORPUS`** | **`400,2000`** — одни и те же N во всех бенчах |
-| Build | `BenchmarkBuildIndex/corpN` |
-| Смешанный запрос | `BenchmarkQueryEvalMixed/idx_N`, `…/scan_N` |
-| ADJ / NEAR (составные) | `BenchmarkQueryAdjNear/idx_adj_N`, `idx_near_N`, scan |
-| **Каждый оператор отдельно** | `BenchmarkOp/<OP>/idx\|scan/corpN` |
+| Назначение | Корпус | N |
+|:-----------|:-------|--:|
+| `go test -bench`, табл. 4.3–4.5 | синтетика `fillCorpus`, ~96 символов/док, 16 термов | **400, 2000** |
+| размер индекса, построение, `irquery` | **ruwiki** `ruwiki-latest-pages-articles.xml` | **20 000** статей |
 
-| Оператор | Запрос в `BenchmarkOp` |
-|:---------|:----------------------|
-| AND | `alpha AND beta` |
-| OR | `alpha OR gamma` |
-| NOT | `NOT delta` |
-| ADJ | `ADJ(alpha, beta)` |
-| NEAR | `NEAR(3, alpha, gamma)` |
-| EDGE | `FIRST(alpha) AND NOT EDGE_END(delta)` |
-| MSM | `MSM(40, gamma, omega, alpha)` |
+`BENCH_CORPUS=400,2000` — одни и те же N во всех бенчах `BenchmarkBuildIndex|Query|Op`.
 
-Сырые логи: [`metrics/raw/benchmarks.txt`](metrics/raw/benchmarks.txt), снимок первой версии: [`benchmarks_before_refactor.csv`](metrics/raw/benchmarks_before_refactor.csv).
+| Сценарий | Бенч / команда |
+|:---------|:---------------|
+| Build (синт.) | `BenchmarkBuildIndex/corpN` |
+| Смешанный запрос | `BenchmarkQueryEvalMixed/idx_N`, `scan_N` |
+| ADJ / NEAR | `BenchmarkQueryAdjNear/idx_adj_N`, `idx_near_N` |
+| Каждый оператор | `BenchmarkOp/<OP>/idx/corpN` |
 
 ---
 
 ## 4. Результаты и графики
 
-### 4.1 Размер индекса: до сжатия (RAM) и после (файл `.irx`)
+### 4.1а Синтетика — размер индекса (RAM vs `.irx`)
 
-[`stats.go`](internal/ir/stats.go) **20–64**, [`TestIndexSizesOnSynthetic`](internal/ir/ir_test.go) **234–245**, синтетика `fillCorpus`.
+[`TestIndexSizesOnSynthetic`](internal/ir/ir_test.go), `fillCorpus`. **1 КБ = 1024 байт.**
 
 | N | термов | RAM, КБ | файл `.irx`, КБ | сжатие |
 |--:|-------:|--------:|----------------:|-------:|
 | 400 | 16 | **9 950** | **17** | **580×** |
 | 2000 | 16 | **239 554** | **85** | **2833×** |
 
-**1 КБ = 1024 байт** (`raw_bytes` / `compressed_bytes` в тесте, делим на 1024). RAM — `EstimateIndexBytes` (тексты в `Docs` + постинги); файл — только сжатые постинги (delta+varint).
+На синтетике в RAM ещё лежат тексты в `Docs` (`Add`); коэффициент завышен за счёт маленького файла.
 
-### 4.2 Сравнение с первой версией (`benchmarks_before_refactor.csv` → текущий прогон)
+### 4.1б Ruwiki — построение и размеры (**N = 20 000**)
+
+Команда: `go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 20000 -out data/index.irx`  
+Сборка: `AddLean` (без хранения тел статей), токенизация UTF-8.
+
+| метрика | значение |
+|:--------|--------:|
+| страниц просмотрено | 20 002 |
+| проиндексировано | **20 000** |
+| **время построения** | **1 м 19 с** |
+| термов в индексе | 1 655 705 |
+| постинговых записей | 18 084 944 |
+| RAM (оценка постингов), КБ | **1 547 332** |
+| файл `data/index.irx`, КБ | **194 162** |
+| сжатие RAM / файл | **≈8×** |
+| peak RSS при сборке | ≈4,3 ГБ |
+
+Полный дамп (все статьи) — отдельный прогон `-maxdocs 0`; для отчёта зафиксирован срез **20 000** статей, как в методичке по масштабу.
+
+### 4.2 Сравнение с первой версией (синтетика, `benchmarks_before_refactor.csv`)
 
 | Сценарий | N | метрика | было | стало | Δ |
 |:---------|--:|:--------|-----:|------:|--:|
@@ -118,28 +143,19 @@ make profile
 | QueryAdjNear | 2000 | ns/op (idx_adj) | 26 754 | 47 207 | +77%² |
 | QueryAdjNear | 400 | ns/op (idx_adj) | 7 308 | 6 691 | **−8%** |
 
-¹ Смешанный запрос с MSM; доминирует `msmInDoc`, не булева часть.  
-² Составной запрос `ADJ(…) AND NOT EDGE_END(…)`, не чистый ADJ — см. табл. 4.3.
+¹ Доминирует `msmInDoc`. ² Составной `ADJ(…) AND NOT EDGE_END(…)` — см. табл. 4.5.
 
-**Построение индекса (цель ~3 с):** на синтетике N=2000 одна итерация `BenchmarkBuildIndex` ≈ **10.4 ms** (табл. 4.4); проверка «3 с на полном корпусе» — отдельный прогон на большом дампе, не входит в этот отчёт.
+### 4.3 Исправление сборки вики (почему «висело» 30+ мин)
 
-### 4.3 Операторы по отдельности — `BenchmarkOp`, N = 2000 (idx)
+| Проблема | Следствие | Исправление |
+|:---------|:----------|:------------|
+| `for k := range tokScratch` на каждый `Add` | O(документы × словарь), рост времени | `scratchKeys` — сброс только термов текущей статьи |
+| `Docs.Tokens` для каждой статьи | гигабайты RAM | `AddLean` при загрузке XML |
+| токенизация по байтам | битая кириллица | `utf8.DecodeRuneInString` |
 
-`go test -bench='BenchmarkOp/.*/idx/corp2000' -benchmem`, `BENCH_CORPUS=2000`.
+После правок: **5 000** статей ≈ **25 с**, **20 000** ≈ **1 м 19 с** (табл. 4.1б).
 
-| OP | ns/op | B/op | allocs/op |
-|:---|------:|-----:|----------:|
-| AND | 15 283 | 19 064 | 12 |
-| OR | 19 268 | 27 256 | 13 |
-| NOT | 8 891 | 15 736 | 11 |
-| **ADJ** | **8 597** | **1 016** | **7** |
-| **NEAR** | **9 146** | **4 088** | **9** |
-| EDGE | 28 080 | 44 832 | 40 |
-| MSM | 618 993 | 272 000 | 570 |
-
-**Чистый ADJ** (табл. 4.3): **1 016 B/op** vs старый `idx_adj` (**11 760 B/op**, составной запрос, табл. 4.2) — **≈11×**.
-
-### 4.4 Агрегат `metrics/raw/benchmarks.csv` (`BENCH_CORPUS=400,2000`)
+### 4.4 Агрегат `metrics/raw/benchmarks.csv` (синтетика)
 
 | bench | режим | N | ns/op | B/op |
 |:------|:------|--:|------:|-----:|
@@ -154,56 +170,71 @@ make profile
 | BenchmarkQueryAdjNear | idx_adj | 2000 | 47 207 | 42 656 |
 | BenchmarkQueryAdjNear | idx_near | 2000 | 32 074 | 20 008 |
 
-#### Рисунок 4.1 — построение индекса
+#### Рисунок 4.1 — построение индекса (синт.)
 
 ![Build index](./metrics/plots/build_index_ns.png)
 
-#### Рисунок 4.2 — запрос: индекс vs полный скан
+#### Рисунок 4.2 — запрос: индекс vs полный скан (синт.)
 
 ![Query idx vs scan](./metrics/plots/query_idx_vs_scan.png)
+
+### 4.5 Операторы по отдельности — `BenchmarkOp`, N = 2000 (синт., idx)
+
+| OP | ns/op | B/op | allocs/op |
+|:---|------:|-----:|----------:|
+| AND | 15 283 | 19 064 | 12 |
+| OR | 19 268 | 27 256 | 13 |
+| NOT | 8 891 | 15 736 | 11 |
+| **ADJ** | **8 597** | **1 016** | **7** |
+| **NEAR** | **9 146** | **4 088** | **9** |
+| EDGE | 28 080 | 44 832 | 40 |
+| MSM | 618 993 | 272 000 | 570 |
+
+Чистый **ADJ**: **1 016 B/op** vs составной `idx_adj` (**11 760 B/op**) — **≈11×**.
 
 ---
 
 ## 5. Тесты и эталон SlowEval
 
-[`internal/ir/ir_test.go`](internal/ir/ir_test.go): `Eval` vs `SlowEval` (**129–176**), mmap roundtrip (**199–232**), размеры (**234–245**).
+[`internal/ir/ir_test.go`](internal/ir/ir_test.go): `Eval` vs `SlowEval`, mmap roundtrip (`IRIXV2BP`), размеры, `TestBuildIndexFromWikiXMLSample`, `TestTokenizeCyrillic`.
 
-Покрытие: **86.8%** statements (`go test ./... -coverprofile=coverage.out`).
+```bash
+go test ./... -coverprofile=coverage.out
+```
 
 ---
 
 ## 6. Профилирование CPU и памяти
 
-`make profile`, корпус **2000**: `BenchmarkQueryEvalMixed/idx_2000`, `BenchmarkBuildIndex/corp2000`.
+`make profile`, синтетика **N = 2000**.
 
-### 6.1–6.2 Запрос Eval — flamegraph
+### 6.1–6.2 Запрос Eval
 
 ![Flame CPU query](./metrics/plots/flamegraph_cpu_query_idx.png)
 
 ![Flame mem query](./metrics/plots/flamegraph_mem_query_idx.png)
 
-| Показатель | Первая версия (смешанный idx) | Текущая |
-|:-----------|:----------------------------|:--------|
-| Доля `msmInDoc` (alloc) | ≈52% | ≈74% |
+| Показатель | Первая версия | Текущая |
+|:-----------|:-------------|:--------|
 | `setToSortedIDs` / `postingsDocSet` в топе | **да** | **нет** |
-| `intersectSortedSkipInto` / `EvalCtx` | нет | **≈5% + ≈31% cum** |
-| Суммарный alloc_space (сэмпл бенча) | ≈812 MB | ≈651 MB |
+| `intersectSortedSkipInto` / `EvalCtx` | нет | **есть** |
+| alloc_space (смешанный idx) | ≈812 MB | ≈651 MB |
 
-### 6.3–6.4 Построение индекса — flamegraph
+### 6.3–6.4 Построение индекса
 
 ![Flame CPU build](./metrics/plots/flamegraph_cpu_build_index.png)
 
 ![Flame mem build](./metrics/plots/flamegraph_mem_build_index.png)
 
-| Показатель | Первая версия | Текущая |
-|:-----------|:-------------|:--------|
-| `(*InvIndex).Add` cum (build) | ≈67% | **≈59%** |
-| `Tokenize` flat | ≈26% | **≈32%** |
-
-HTML: [`flamegraph_mem_query_idx.html`](metrics/plots/flamegraph_mem_query_idx.html), [`flamegraph_cpu_build_index.html`](metrics/plots/flamegraph_cpu_build_index.html).
-
 ---
 
 ## 7. Вывод
 
-Координатный индекс, булевы операторы, ADJ/NEAR/edge, BM25, диск + mmap + сжатие — по ТЗ. Измеримые улучшения на синтетике: **табл. 4.1** (сжатие до **2833×**), **табл. 4.2** (build **−16…−40%**, mixed idx **−35% ns**), **табл. 4.3** (отдельные операторы), **§6** (профиль без `setToSortedIDs`/`postingsDocSet`). MSM и составные ADJ/NEAR-запросы остаются тяжёлыми — видно в табл. 4.3–4.4 и flamegraph.
+Реализованы: координатный индекс, булевы операторы, ADJ/NEAR/edge, BM25, **bit-packing** + mmap (`IRIXV2BP`), консольный **`irquery`**.
+
+| Корпус | Главные цифры |
+|:-------|:--------------|
+| синтетика N=2000 | сжатие **2833×**, build **−40% ns**, mixed idx **−35% ns** (табл. 4.2–4.5) |
+| **ruwiki N=20 000** | построение **1 м 19 с**, `.irx` **194 162 КБ**, RAM постингов **1 547 332 КБ** (табл. 4.1б) |
+
+Запросы к боевому индексу — через `irquery` по `data/index.irx`. MSM и тяжёлые составные запросы по-прежнему доминируют в профиле на синтетике.
