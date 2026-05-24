@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mediawiki>
+  <page>
+    <title>Alpha</title>
+    <revision><text>alpha beta gamma omega</text></revision>
+  </page>
+  <page>
+    <title>Beta</title>
+    <revision><text>beta alpha gamma city</text></revision>
+  </page>
+  <page>
+    <title>Gamma</title>
+    <revision><text>gamma delta alpha</text></revision>
+  </page>
+</mediawiki>

@@ -18,12 +18,16 @@ func postingDocIDs(ix *InvIndex, term string) []uint32 {
 }
 
 // intersectSortedSkip: пересечение отсортированных docID с виртуальными skip-прыжками.
-// Шаг берется как floor(sqrt(n)); дополнительных структур в памяти не создается.
 func intersectSortedSkip(a, b []uint32) []uint32 {
+	out := make([]uint32, 0, min(len(a), len(b)))
+	return intersectSortedSkipInto(out, a, b)
+}
+
+func intersectSortedSkipInto(out, a, b []uint32) []uint32 {
+	out = out[:0]
 	if len(a) == 0 || len(b) == 0 {
 		return nil
 	}
-	out := make([]uint32, 0, min(len(a), len(b)))
 	stepA := 1
 	for stepA*stepA < len(a) {
 		stepA++
@@ -63,18 +67,28 @@ func intersectSortedSkip(a, b []uint32) []uint32 {
 			j++
 		}
 	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
-// unionSorted — объединение двух возрастающих уникальных списков без map.
 func unionSorted(a, b []uint32) []uint32 {
+	out := make([]uint32, 0, len(a)+len(b))
+	return unionSortedInto(out, a, b)
+}
+
+func unionSortedInto(out, a, b []uint32) []uint32 {
+	out = out[:0]
 	if len(a) == 0 {
-		return slices.Clone(b)
+		if len(b) == 0 {
+			return nil
+		}
+		return append(out, b...)
 	}
 	if len(b) == 0 {
-		return slices.Clone(a)
+		return append(out, a...)
 	}
-	out := make([]uint32, 0, len(a)+len(b))
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
 		ai, bj := a[i], b[j]
@@ -92,15 +106,25 @@ func unionSorted(a, b []uint32) []uint32 {
 	}
 	out = append(out, a[i:]...)
 	out = append(out, b[j:]...)
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
-// subtractSorted возвращает a \\ b для возрастающих уникальных срезов.
 func subtractSorted(a, minus []uint32) []uint32 {
-	if len(minus) == 0 || len(a) == 0 {
-		return slices.Clone(a)
-	}
 	out := make([]uint32, 0, len(a))
+	return subtractSortedInto(out, a, minus)
+}
+
+func subtractSortedInto(out, a, minus []uint32) []uint32 {
+	out = out[:0]
+	if len(minus) == 0 || len(a) == 0 {
+		if len(a) == 0 {
+			return nil
+		}
+		return append(out, a...)
+	}
 	i, j := 0, 0
 	for i < len(a) && j < len(minus) {
 		ai, bj := a[i], minus[j]
@@ -123,42 +147,12 @@ func subtractSorted(a, minus []uint32) []uint32 {
 
 // Eval выполняет булеву модель документов над индексом.
 func Eval(ix *InvIndex, n Node) MatchSet {
-	return eval(ix, n)
+	ctx := NewEvalCtx(ix)
+	return ctx.Eval(n)
 }
 
 func eval(ix *InvIndex, n Node) []uint32 {
-	switch t := n.(type) {
-	case *Term:
-		return postingDocIDs(ix, t.Lex)
-	case *Not:
-		return subtractSorted(ix.allDocIDs(), eval(ix, t.Child))
-	case *And:
-		if len(t.Children) == 0 {
-			return nil
-		}
-		sorted := eval(ix, t.Children[0])
-		for i := 1; i < len(t.Children); i++ {
-			sorted = intersectSortedSkip(sorted, eval(ix, t.Children[i]))
-			if len(sorted) == 0 {
-				return nil
-			}
-		}
-		return sorted
-	case *Or:
-		return unionSorted(eval(ix, t.Left), eval(ix, t.Right))
-	case *Near:
-		return evalNear(ix, t.K, t.A, t.B)
-	case *Adj:
-		return evalAdj(ix, t.A, t.B)
-	case *MSM:
-		return evalMSM(ix, t.W, t.Terms)
-	case *EdgeStart:
-		return edgeStart(ix, t.Lex)
-	case *EdgeEnd:
-		return edgeEnd(ix, t.Lex)
-	default:
-		return nil
-	}
+	return Eval(ix, n)
 }
 
 func evalNear(ix *InvIndex, k int, a, b string) []uint32 {
@@ -234,7 +228,7 @@ func edgeStart(ix *InvIndex, term string) []uint32 {
 func edgeEnd(ix *InvIndex, term string) []uint32 {
 	var out []uint32
 	for _, p := range ix.Postings(term) {
-		last := len(ix.Docs[p.DocID].Tokens) - 1
+		last := ix.docLen(p.DocID) - 1
 		if last < 0 {
 			continue
 		}

@@ -70,6 +70,25 @@ metrics/raw/
 lab1/AllCombined*.txt
 results/
 
+# Wikimedia / прочие дампы (локально, не в git)
+ruwiki-*
+enwiki-*
+*-pages-articles.xml
+*-pages-articles.xml.bz2
+*.xml.bz2
+
 # Lab 3: большой sift + venv локально (графики в metrics/plots/ коммитим)
 lab-3-vecSearch/data/
 lab-3-vecSearch/.venv/
+
+# Lab 5: распакованный индекс и дампы в data/
+lab-5-irindex/data/*
+!lab-5-irindex/data/.gitignore
+!lab-5-irindex/data/.gitkeep
+
+# Go: coverage и бинари тестов в корне пакетов
+coverage.out
+**/coverage.out
+
+# pprof (тексты top и PNG в plots/ остаются в git)
+**/metrics/profiles/*.prof

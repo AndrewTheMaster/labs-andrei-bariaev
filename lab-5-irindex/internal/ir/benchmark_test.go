@@ -2,68 +2,16 @@ package ir
 
 import (
 	"fmt"
-	"math/rand/v2"
-	"os"
-	"strconv"
-	"strings"
 	"testing"
 )
 
-func corpusSizes(tb testing.TB) []int {
-	raw := strings.TrimSpace(os.Getenv("BENCH_CORPUS"))
-	if raw == "" {
-		return []int{400, 2000}
-	}
-	var out []int
-	for _, p := range strings.Split(raw, ",") {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		n, err := strconv.Atoi(p)
-		if err != nil || n <= 0 {
-			tb.Fatalf("bad BENCH_CORPUS part %q", p)
-		}
-		out = append(out, n)
-	}
-	if len(out) == 0 {
-		tb.Fatal("empty BENCH_CORPUS")
-	}
-	return out
-}
-
-type vocab []string
-
-func defaultWords() vocab {
-	w := strings.Fields("alpha beta gamma delta epsilon zeta omega cat dog mouse tiger lion quantum field iris node")
-	out := make(vocab, len(w))
-	copy(out, w)
-	return out
-}
-
-func fillCorpus(nDocs int, seed uint64, words vocab) *InvIndex {
-	ix := NewIndex()
-	src := rand.NewPCG(seed, seed^909)
-	for i := 0; i < nDocs; i++ {
-		buf := strings.Builder{}
-		for buf.Len() < 96 {
-			if buf.Len() > 0 {
-				buf.WriteByte(' ')
-			}
-			buf.WriteString(words[src.Uint64()%uint64(len(words))])
-		}
-		ix.Add(Tokenize(buf.String()))
-	}
-	return ix
-}
-
 func BenchmarkBuildIndex(b *testing.B) {
-	words := defaultWords()
 	for _, n := range corpusSizes(b) {
-		// Имя подбенча без «docs_»: Go приклеивает -GOMAXPROCS к последнему сегменту.
 		b.Run(fmt.Sprintf("corp%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				fillCorpus(n, 777, words)
+				_ = fillCorpus(n, 777, defaultWords())
 			}
 		})
 	}
@@ -79,10 +27,12 @@ func BenchmarkQueryEvalMixed(b *testing.B) {
 	for _, n := range corpusSizes(b) {
 		b.Run(fmt.Sprintf("idx_%d", n), func(b *testing.B) {
 			ix := fillCorpus(n, 4242, words)
+			ctx := NewEvalCtx(ix)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = Eval(ix, ast)
+				ctx.Reset()
+				_ = ctx.Eval(ast)
 			}
 		})
 		b.Run(fmt.Sprintf("scan_%d", n), func(b *testing.B) {
@@ -109,10 +59,12 @@ func BenchmarkQueryAdjNear(b *testing.B) {
 	for _, n := range corpusSizes(b) {
 		ix := fillCorpus(n, 5150, words)
 		b.Run(fmt.Sprintf("idx_adj_%d", n), func(b *testing.B) {
+			ctx := NewEvalCtx(ix)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = Eval(ix, adjQ)
+				ctx.Reset()
+				_ = ctx.Eval(adjQ)
 			}
 		})
 		b.Run(fmt.Sprintf("scan_adj_%d", n), func(b *testing.B) {
@@ -123,10 +75,12 @@ func BenchmarkQueryAdjNear(b *testing.B) {
 			}
 		})
 		b.Run(fmt.Sprintf("idx_near_%d", n), func(b *testing.B) {
+			ctx := NewEvalCtx(ix)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = Eval(ix, nearQ)
+				ctx.Reset()
+				_ = ctx.Eval(nearQ)
 			}
 		})
 		b.Run(fmt.Sprintf("scan_near_%d", n), func(b *testing.B) {
@@ -136,5 +90,46 @@ func BenchmarkQueryAdjNear(b *testing.B) {
 				_ = SlowEval(ix, nearQ)
 			}
 		})
+	}
+}
+
+func BenchmarkOp(b *testing.B) {
+	q := defaultBenchQueries()
+	ops := []struct {
+		name string
+		q    string
+	}{
+		{"AND", q.AND},
+		{"OR", q.OR},
+		{"NOT", q.NOT},
+		{"ADJ", q.ADJ},
+		{"NEAR", q.NEAR},
+		{"EDGE", q.EDGE},
+		{"MSM", q.MSM},
+	}
+	for _, n := range corpusSizes(b) {
+		ix := buildCorpusN(b, n)
+		for _, op := range ops {
+			ast, err := Parse(op.q)
+			if err != nil {
+				b.Fatalf("%s: %v", op.name, err)
+			}
+			b.Run(fmt.Sprintf("%s/idx/corp%d", op.name, n), func(b *testing.B) {
+				ctx := NewEvalCtx(ix)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					ctx.Reset()
+					_ = ctx.Eval(ast)
+				}
+			})
+			b.Run(fmt.Sprintf("%s/scan/corp%d", op.name, n), func(b *testing.B) {
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_ = SlowEval(ix, ast)
+				}
+			})
+		}
 	}
 }

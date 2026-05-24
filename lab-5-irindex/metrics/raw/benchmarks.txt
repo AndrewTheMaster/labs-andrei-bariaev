@@ -2,19 +2,19 @@ goos: linux
 goarch: amd64
 pkg: siaod-hw5-irindex/internal/ir
 cpu: AMD Eng Sample: 100-000000829-50_Y             
-BenchmarkBuildIndex/corp400-16         	     175	   3334115 ns/op	 1364405 B/op	   21162 allocs/op
-BenchmarkBuildIndex/corp2000-16        	      36	  17477595 ns/op	 7238083 B/op	  105703 allocs/op
-BenchmarkQueryEvalMixed/idx_400-16     	    1990	    270128 ns/op	   86777 B/op	     189 allocs/op
-BenchmarkQueryEvalMixed/scan_400-16    	    1502	    368801 ns/op	  100120 B/op	     231 allocs/op
-BenchmarkQueryEvalMixed/idx_2000-16    	     387	   1518577 ns/op	  436303 B/op	     891 allocs/op
-BenchmarkQueryEvalMixed/scan_2000-16   	     260	   2170875 ns/op	  494682 B/op	    1109 allocs/op
-BenchmarkQueryAdjNear/idx_adj_400-16   	   81728	      7308 ns/op	    2400 B/op	      12 allocs/op
-BenchmarkQueryAdjNear/scan_adj_400-16  	   13153	     45830 ns/op	     248 B/op	       5 allocs/op
-BenchmarkQueryAdjNear/idx_near_400-16  	   75333	      7355 ns/op	    2096 B/op	      14 allocs/op
-BenchmarkQueryAdjNear/scan_near_400-16 	    7190	     93286 ns/op	    2040 B/op	       8 allocs/op
-BenchmarkQueryAdjNear/idx_adj_2000-16  	   20109	     26754 ns/op	   11760 B/op	      17 allocs/op
-BenchmarkQueryAdjNear/scan_adj_2000-16 	    4749	    119614 ns/op	    1016 B/op	       7 allocs/op
-BenchmarkQueryAdjNear/idx_near_2000-16 	   27152	     24811 ns/op	   12272 B/op	      19 allocs/op
-BenchmarkQueryAdjNear/scan_near_2000-16         	    1052	    590886 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkBuildIndex/corp400-16         	     331	   1787792 ns/op	 1102132 B/op	   10836 allocs/op
+BenchmarkBuildIndex/corp2000-16        	      57	  10413717 ns/op	 6059898 B/op	   53375 allocs/op
+BenchmarkQueryEvalMixed/idx_400-16     	    3874	    153577 ns/op	   96345 B/op	     221 allocs/op
+BenchmarkQueryEvalMixed/scan_400-16    	    2678	    204347 ns/op	  100120 B/op	     231 allocs/op
+BenchmarkQueryEvalMixed/idx_2000-16    	     561	    992846 ns/op	  485463 B/op	     934 allocs/op
+BenchmarkQueryEvalMixed/scan_2000-16   	     526	   1163025 ns/op	  494681 B/op	    1109 allocs/op
+BenchmarkQueryAdjNear/idx_adj_400-16   	   85272	      6691 ns/op	    8352 B/op	      28 allocs/op
+BenchmarkQueryAdjNear/scan_adj_400-16  	   24727	     24779 ns/op	     248 B/op	       5 allocs/op
+BenchmarkQueryAdjNear/idx_near_400-16  	  118335	      8183 ns/op	    4152 B/op	      23 allocs/op
+BenchmarkQueryAdjNear/scan_near_400-16 	    9992	     55971 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkQueryAdjNear/idx_adj_2000-16  	   15512	     47207 ns/op	   42656 B/op	      38 allocs/op
+BenchmarkQueryAdjNear/scan_adj_2000-16 	    2354	    237486 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkQueryAdjNear/idx_near_2000-16 	   17451	     32074 ns/op	   20008 B/op	      30 allocs/op
+BenchmarkQueryAdjNear/scan_near_2000-16         	     849	    627293 ns/op	    7544 B/op	      10 allocs/op
 PASS
-ok  	siaod-hw5-irindex/internal/ir	10.949s
+ok  	siaod-hw5-irindex/internal/ir	11.511s

@@ -10,18 +10,26 @@ type posting struct {
 type Doc struct {
 	ID     uint32
 	Tokens []string
+	NTok   int // число токенов (для edge/BM25, если Tokens не хранятся)
 }
 
 // InvIndex хранит позиционные постинговые списки (DocID монотонно растёт с порядком Add).
 type InvIndex struct {
 	Docs     []Doc
 	postings map[string][]posting
-	// allIDsBuf ленивая последовательность [0 .. NumDocs-1] для дополнений NOT без аллокаций на запросе.
+	// allIDsBuf ленивая последовательность [0 .. NumDocs-1] для дополнений NOT.
 	allIDsBuf []uint32
+	// posArena — единый буфер позиций; срезы в posting.Poss ссылаются сюда (без копии на терм).
+	posArena []uint32
+	// tokScratch переиспользуется в Add: map очищается по длине, слайсы — [:0].
+	tokScratch map[string][]uint32
 }
 
 func NewIndex() *InvIndex {
-	return &InvIndex{postings: make(map[string][]posting)}
+	return &InvIndex{
+		postings:   make(map[string][]posting),
+		tokScratch: make(map[string][]uint32),
+	}
 }
 
 func sortUint32(s []uint32) {
@@ -31,16 +39,38 @@ func sortUint32(s []uint32) {
 // Add добавляет документ как последовательность токенов.
 func (ix *InvIndex) Add(tokens []string) uint32 {
 	id := uint32(len(ix.Docs))
-	ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: tokens})
-	posByTok := make(map[string][]uint32)
-	for pos, tok := range tokens {
-		posByTok[tok] = append(posByTok[tok], uint32(pos))
+	ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: tokens, NTok: len(tokens)})
+
+	for k := range ix.tokScratch {
+		ix.tokScratch[k] = ix.tokScratch[k][:0]
 	}
-	for tok, poss := range posByTok {
+	for pos, tok := range tokens {
+		ix.tokScratch[tok] = append(ix.tokScratch[tok], uint32(pos))
+	}
+	for tok, poss := range ix.tokScratch {
+		if len(poss) == 0 {
+			continue
+		}
 		sortUint32(poss)
-		ix.postings[tok] = append(ix.postings[tok], posting{DocID: id, Poss: append([]uint32(nil), poss...)})
+		start := len(ix.posArena)
+		ix.posArena = append(ix.posArena, poss...)
+		ix.postings[tok] = append(ix.postings[tok], posting{
+			DocID: id,
+			Poss:  ix.posArena[start : start+len(poss)],
+		})
 	}
 	return id
+}
+
+func (ix *InvIndex) docLen(id uint32) int {
+	if int(id) >= len(ix.Docs) {
+		return 0
+	}
+	d := ix.Docs[id]
+	if d.NTok > 0 {
+		return d.NTok
+	}
+	return len(d.Tokens)
 }
 
 func (ix *InvIndex) NumDocs() int { return len(ix.Docs) }

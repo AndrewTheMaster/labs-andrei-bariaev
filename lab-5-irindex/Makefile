@@ -1,18 +1,27 @@
 BENCH_CORPUS ?= 400,2000
 BENCH_TIME   ?= 500ms
-BENCH_FILTER ?= ^Benchmark
+BENCH_FILTER ?= ^Benchmark(BuildIndex|Query)
 METRICS_OUT  ?= metrics
 RAW_DIR      := $(METRICS_OUT)/raw
 PLOT_DIR     := $(METRICS_OUT)/plots
 PROF_DIR     := $(METRICS_OUT)/profiles
+WIKI_XML     ?= data/ruwiki-latest-pages-articles.xml
 
-.PHONY: test bench collect metrics plot profile clean
+.PHONY: test bench collect metrics plot profile build-index clean
 
 test:
 	go test ./...
 
 bench:
 	BENCH_CORPUS='$(BENCH_CORPUS)' go test ./internal/ir -run='^$$' -bench '$(BENCH_FILTER)' -benchmem -benchtime='$(BENCH_TIME)'
+
+# Полный прогон на ruwiki (после bunzip2): make bench-wiki BENCH_CORPUS=50000,100000 BENCH_TIME=2s
+bench-wiki:
+	CORPUS_XML='$(WIKI_XML)' BENCH_CORPUS='$(BENCH_CORPUS)' $(MAKE) bench
+
+# Сборка индекса + размеры до/после сжатия (цель ~3s на полном дампе — проверить после скачивания)
+build-index:
+	go run ./cmd/irindex -xml '$(WIKI_XML)' -out data/index.irx
 
 collect:
 	mkdir -p $(RAW_DIR) $(PLOT_DIR)
