@@ -153,11 +153,7 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 
 ![Speedup](./metrics/plots/speedup_parallel.png)
 
-#### Рисунок 3.6 — Сводка @ 65 536 ключей (столбцы)
-
-![Bars 64k](./metrics/plots/bars_parallel_64k.png)
-
-#### Рисунок 3.7 — Дашборд (2×2, для слайда)
+#### Рисунок 3.6 — Дашборд (2×2, для слайда)
 
 ![Dashboard](./metrics/plots/dashboard_parallel.png)
 
