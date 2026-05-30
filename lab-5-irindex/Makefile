@@ -7,7 +7,7 @@ PLOT_DIR     := $(METRICS_OUT)/plots
 PROF_DIR     := $(METRICS_OUT)/profiles
 WIKI_XML     ?= ../ruwiki-latest-pages-articles.xml
 
-.PHONY: test bench collect metrics plot profile build-index build query clean
+.PHONY: test bench collect collect-wiki metrics plot profile build-index build query clean
 
 build:
 	go build -o bin/irindex ./cmd/irindex
@@ -25,9 +25,30 @@ bench:
 
 # Полный прогон на ruwiki (после bunzip2): make bench-wiki BENCH_CORPUS=50000,100000 BENCH_TIME=2s
 bench-wiki:
-	CORPUS_XML='$(WIKI_XML)' BENCH_CORPUS='$(BENCH_CORPUS)' $(MAKE) bench
+	mkdir -p $(RAW_DIR)
+	CORPUS_XML='$(WIKI_XML)' BENCH_CORPUS='$(BENCH_CORPUS)' \
+		go test ./internal/ir -run='^$$' -bench '$(BENCH_FILTER)' -benchmem -benchtime='$(BENCH_TIME)' \
+		| tee $(RAW_DIR)/benchmarks_wiki.txt
 
-# Сборка индекса + размеры до/после сжатия (цель ~3s на полном дампе — проверить после скачивания)
+collect-wiki: bench-wiki
+	awk 'BEGIN { OFS=","; print "bench,mode,corpus,iters,ns_per_op,bytes_per_op" } \
+	/^Benchmark/ { \
+	  fname=$$1; sub(/-[0-9]+$$/, "", fname); \
+	  n=split(fname, a, "/"); \
+	  if (n < 2) next; \
+	  bench=a[1]; tail=a[2]; \
+	  mode=""; corpus=0; \
+	  if (bench == "BenchmarkQueryEvalMixed") { split(tail, u, "_"); mode=u[1]; corpus=u[2]+0; } \
+	  else if (bench == "BenchmarkOp") { if (n < 4) next; mode=a[2] "_" a[3]; sub(/^corp/, "", a[4]); corpus=a[4]+0; } \
+	  else next; \
+	  iters=$$2; ns=0; bpb=0; \
+	  for (i=2; i<=NF; i++) { if ($$i == "ns/op") ns=$$(i-1); if ($$i == "B/op") bpb=$$(i-1); } \
+	  print bench,mode,corpus,iters,ns,bpb; \
+	}' $(RAW_DIR)/benchmarks_wiki.txt > $(RAW_DIR)/benchmarks_wiki.csv
+	awk -F',' 'NR>1 && $$2=="AND_idx" {print $$3+0, $$5+0}' $(RAW_DIR)/benchmarks_wiki.csv > $(RAW_DIR)/series_wiki_AND_idx.tsv
+	awk -F',' 'NR>1 && $$2=="AND_scan" {print $$3+0, $$5+0}' $(RAW_DIR)/benchmarks_wiki.csv > $(RAW_DIR)/series_wiki_AND_scan.tsv
+
+# Сборка индекса + размеры до/после сжатия
 build-index:
 	go run ./cmd/irindex -xml '$(WIKI_XML)' -out data/index.irx
 

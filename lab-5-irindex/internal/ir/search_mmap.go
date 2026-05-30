@@ -25,6 +25,20 @@ func SearchBoolMMapWarnMSM(mi *MMapIndex, query string) (MatchSet, Node, error) 
 	return ctx.Eval(n), n, nil
 }
 
+// SearchBM25MMap — булев фильтр + BM25 по mmap-индексу.
+func SearchBM25MMap(mi *MMapIndex, query string, k1, b float64) ([]Scored, Node, error) {
+	n, err := Parse(query)
+	if err != nil {
+		return nil, nil, err
+	}
+	if containsMSM(n) {
+		return nil, n, fmt.Errorf("MSM требует in-memory индекс (тексты документов не хранятся в .irx)")
+	}
+	ctx := NewEvalCtx(mi)
+	ds := ctx.Eval(n)
+	return BM25Index(mi, ds, PositiveTerms(n), k1, b), n, nil
+}
+
 func containsMSM(n Node) bool {
 	if n == nil {
 		return false

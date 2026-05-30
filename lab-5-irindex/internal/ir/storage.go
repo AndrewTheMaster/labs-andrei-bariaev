@@ -182,8 +182,8 @@ func SaveCompressed(ix *InvIndex, path string) error {
 	buf.Write(fileMagic[:])
 	writeU32(&buf, uint32(len(ix.Docs)))
 	writeU32(&buf, uint32(len(ix.postings)))
-	for _, d := range ix.Docs {
-		writeU32(&buf, uint32(len(d.Tokens)))
+	for i := range ix.Docs {
+		writeU32(&buf, uint32(ix.docLen(uint32(i))))
 	}
 
 	keys := make([]string, 0, len(ix.postings))

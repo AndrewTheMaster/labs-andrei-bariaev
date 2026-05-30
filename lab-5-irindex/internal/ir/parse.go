@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type tokenKind int
@@ -75,10 +76,14 @@ func (l *lexer) next() {
 		l.tok = token{kind: tkInt, ival: v}
 		return
 	}
-	if unicode.IsLetter(rune(ch)) || ch == '_' {
-		j := l.i
-		for j < len(l.s) && (unicode.IsLetter(rune(l.s[j])) || unicode.IsDigit(rune(l.s[j])) || l.s[j] == '_') {
-			j++
+	if r, size := utf8.DecodeRuneInString(l.s[l.i:]); isTokRune(r) || r == '_' {
+		j := l.i + size
+		for j < len(l.s) {
+			r2, sz := utf8.DecodeRuneInString(l.s[j:])
+			if !isTokRune(r2) && r2 != '_' {
+				break
+			}
+			j += sz
 		}
 		lit := strings.ToLower(l.s[l.i:j])
 		l.i = j

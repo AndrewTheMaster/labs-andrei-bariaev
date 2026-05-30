@@ -3,6 +3,7 @@ package ir
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -196,6 +197,61 @@ func TestBM25Ordering(t *testing.T) {
 	}
 }
 
+func TestBM25MMap(t *testing.T) {
+	ix := NewIndex()
+	buildCorpus(ix, []string{
+		"cat cat mouse",
+		"cat mouse",
+		"mouse elephant",
+	})
+	tmp := filepath.Join(t.TempDir(), "index.irx")
+	if err := SaveCompressed(ix, tmp); err != nil {
+		t.Fatal(err)
+	}
+	mi, err := OpenMMapIndex(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mi.Close()
+
+	ram, err := SearchBM25(ix, `cat OR mouse`, 1.2, 0.75)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mmap, _, err := SearchBM25MMap(mi, `cat OR mouse`, 1.2, 0.75)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ram) != len(mmap) {
+		t.Fatalf("hit count: ram=%d mmap=%d", len(ram), len(mmap))
+	}
+	for i := range ram {
+		if ram[i].DocID != mmap[i].DocID {
+			t.Fatalf("doc order mismatch at %d: ram=%d mmap=%d", i, ram[i].DocID, mmap[i].DocID)
+		}
+		if math.Abs(ram[i].Score-mmap[i].Score) > 1e-9 {
+			t.Fatalf("score mismatch doc=%d: ram=%v mmap=%v", ram[i].DocID, ram[i].Score, mmap[i].Score)
+		}
+	}
+}
+
+func TestDocLenLeanMMap(t *testing.T) {
+	ix := NewIndex()
+	ix.AddLean([]string{"alpha", "beta", "gamma"})
+	tmp := filepath.Join(t.TempDir(), "index.irx")
+	if err := SaveCompressed(ix, tmp); err != nil {
+		t.Fatal(err)
+	}
+	mi, err := OpenMMapIndex(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mi.Close()
+	if got := mi.DocLen(0); got != 3 {
+		t.Fatalf("docLen lean: got %d want 3", got)
+	}
+}
+
 func TestCompressedMMapRoundtrip(t *testing.T) {
 	ix := NewIndex()
 	buildCorpus(ix, []string{
@@ -215,6 +271,11 @@ func TestCompressedMMapRoundtrip(t *testing.T) {
 
 	if mi.NumDocs() != ix.NumDocs() {
 		t.Fatalf("num docs mismatch: %d vs %d", mi.NumDocs(), ix.NumDocs())
+	}
+	for i := 0; i < ix.NumDocs(); i++ {
+		if mi.DocLen(uint32(i)) != ix.docLen(uint32(i)) {
+			t.Fatalf("docLen[%d]: mmap=%d ram=%d", i, mi.DocLen(uint32(i)), ix.docLen(uint32(i)))
+		}
 	}
 	for _, term := range []string{"alpha", "beta", "gamma", "delta"} {
 		got, err := mi.Postings(term)

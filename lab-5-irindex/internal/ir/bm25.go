@@ -10,8 +10,29 @@ type Scored struct {
 	Score float64
 }
 
-// BM25 оценивает кандидатов; queryTerms — наблюдаемые позитивные лексемы.
-func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Scored {
+func postingTF(ps []posting, docID uint32) float64 {
+	for i := range ps {
+		if ps[i].DocID == docID {
+			return float64(len(ps[i].Poss))
+		}
+	}
+	return 0
+}
+
+func avgDocLen(ix PostingIndex) float64 {
+	n := ix.NumDocs()
+	if n == 0 {
+		return 0
+	}
+	sum := 0
+	for i := 0; i < n; i++ {
+		sum += ix.DocLen(uint32(i))
+	}
+	return float64(sum) / float64(n)
+}
+
+// BM25Index оценивает кандидатов по PostingIndex (RAM или mmap).
+func BM25Index(ix PostingIndex, cand MatchSet, queryTerms []string, k1, b float64) []Scored {
 	if len(queryTerms) == 0 {
 		out := make([]Scored, 0, len(cand))
 		for _, id := range cand {
@@ -23,39 +44,35 @@ func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Sco
 	if N == 0 {
 		return nil
 	}
-	avgdl := 0.0
-	for _, d := range ix.Docs {
-		avgdl += float64(len(d.Tokens))
-	}
-	avgdl /= N
-
-	idf := func(term string) float64 {
-		df := float64(ix.df(term))
-		return math.Log(1.0 + (N-df+0.5)/(df+0.5))
+	avgdl := avgDocLen(ix)
+	if avgdl == 0 {
+		avgdl = 1
 	}
 
-	tfDoc := func(d Doc, term string) float64 {
-		c := 0
-		for _, t := range d.Tokens {
-			if t == term {
-				c++
-			}
+	type qStat struct {
+		idf float64
+		ps  []posting
+	}
+	stats := make([]qStat, len(queryTerms))
+	for i, q := range queryTerms {
+		ps, _ := ix.LookupPostings(q)
+		df := float64(len(ps))
+		stats[i] = qStat{
+			idf: math.Log(1.0 + (N-df+0.5)/(df+0.5)),
+			ps:  ps,
 		}
-		return float64(c)
 	}
 
 	out := make([]Scored, 0, len(cand))
 	for _, id := range cand {
-		d := ix.Docs[id]
-		Ld := float64(len(d.Tokens))
+		Ld := float64(ix.DocLen(id))
 		score := 0.0
-		for _, q := range queryTerms {
-			tf := tfDoc(d, q)
+		for _, st := range stats {
+			tf := postingTF(st.ps, id)
 			if tf == 0 {
 				continue
 			}
-			idfq := idf(q)
-			score += idfq * (tf * (k1 + 1)) / (tf + k1*(1.0-b+b*(Ld/avgdl)))
+			score += st.idf * (tf * (k1 + 1)) / (tf + k1*(1.0-b+b*(Ld/avgdl)))
 		}
 		out = append(out, Scored{DocID: id, Score: score})
 	}
@@ -66,4 +83,9 @@ func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Sco
 		return out[i].Score > out[j].Score
 	})
 	return out
+}
+
+// BM25 оценивает кандидатов in-memory индекса.
+func BM25(ix *InvIndex, cand MatchSet, queryTerms []string, k1, b float64) []Scored {
+	return BM25Index(ix, cand, queryTerms, k1, b)
 }

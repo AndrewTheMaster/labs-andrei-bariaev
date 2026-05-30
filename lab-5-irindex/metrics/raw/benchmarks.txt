@@ -2,19 +2,47 @@ goos: linux
 goarch: amd64
 pkg: siaod-hw5-irindex/internal/ir
 cpu: AMD Eng Sample: 100-000000829-50_Y             
-BenchmarkBuildIndex/corp400-16         	     331	   1787792 ns/op	 1102132 B/op	   10836 allocs/op
-BenchmarkBuildIndex/corp2000-16        	      57	  10413717 ns/op	 6059898 B/op	   53375 allocs/op
-BenchmarkQueryEvalMixed/idx_400-16     	    3874	    153577 ns/op	   96345 B/op	     221 allocs/op
-BenchmarkQueryEvalMixed/scan_400-16    	    2678	    204347 ns/op	  100120 B/op	     231 allocs/op
-BenchmarkQueryEvalMixed/idx_2000-16    	     561	    992846 ns/op	  485463 B/op	     934 allocs/op
-BenchmarkQueryEvalMixed/scan_2000-16   	     526	   1163025 ns/op	  494681 B/op	    1109 allocs/op
-BenchmarkQueryAdjNear/idx_adj_400-16   	   85272	      6691 ns/op	    8352 B/op	      28 allocs/op
-BenchmarkQueryAdjNear/scan_adj_400-16  	   24727	     24779 ns/op	     248 B/op	       5 allocs/op
-BenchmarkQueryAdjNear/idx_near_400-16  	  118335	      8183 ns/op	    4152 B/op	      23 allocs/op
-BenchmarkQueryAdjNear/scan_near_400-16 	    9992	     55971 ns/op	    2040 B/op	       8 allocs/op
-BenchmarkQueryAdjNear/idx_adj_2000-16  	   15512	     47207 ns/op	   42656 B/op	      38 allocs/op
-BenchmarkQueryAdjNear/scan_adj_2000-16 	    2354	    237486 ns/op	    1016 B/op	       7 allocs/op
-BenchmarkQueryAdjNear/idx_near_2000-16 	   17451	     32074 ns/op	   20008 B/op	      30 allocs/op
-BenchmarkQueryAdjNear/scan_near_2000-16         	     849	    627293 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkBuildIndex/corp400-16         	     286	   2154376 ns/op	 1216327 B/op	   11242 allocs/op
+BenchmarkBuildIndex/corp2000-16        	      54	  11948394 ns/op	 6643466 B/op	   55380 allocs/op
+BenchmarkQueryEvalMixed/idx_400-16     	    3097	    174934 ns/op	   96346 B/op	     221 allocs/op
+BenchmarkQueryEvalMixed/scan_400-16    	    2640	    209968 ns/op	  100120 B/op	     231 allocs/op
+BenchmarkQueryEvalMixed/idx_2000-16    	     621	    969698 ns/op	  485449 B/op	     934 allocs/op
+BenchmarkQueryEvalMixed/scan_2000-16   	     487	   1172871 ns/op	  494681 B/op	    1109 allocs/op
+BenchmarkQueryAdjNear/idx_adj_400-16   	   81537	      7184 ns/op	    8352 B/op	      28 allocs/op
+BenchmarkQueryAdjNear/scan_adj_400-16  	   25395	     22985 ns/op	     248 B/op	       5 allocs/op
+BenchmarkQueryAdjNear/idx_near_400-16  	  115689	      5149 ns/op	    4152 B/op	      23 allocs/op
+BenchmarkQueryAdjNear/scan_near_400-16 	    9883	     55728 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkQueryAdjNear/idx_adj_2000-16  	   14592	     43954 ns/op	   42656 B/op	      38 allocs/op
+BenchmarkQueryAdjNear/scan_adj_2000-16 	    4708	    177546 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkQueryAdjNear/idx_near_2000-16 	   16800	     36289 ns/op	   20008 B/op	      30 allocs/op
+BenchmarkQueryAdjNear/scan_near_2000-16         	     825	    671528 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkOp/AND/idx/corp400-16                  	  240538	      2536 ns/op	    3192 B/op	       9 allocs/op
+BenchmarkOp/AND/scan/corp400-16                 	   27429	     21583 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkOp/OR/idx/corp400-16                   	  215577	      2671 ns/op	    5240 B/op	      10 allocs/op
+BenchmarkOp/OR/scan/corp400-16                  	   29596	     19976 ns/op	    4088 B/op	       9 allocs/op
+BenchmarkOp/NOT/idx/corp400-16                  	  317916	      1647 ns/op	    2808 B/op	       8 allocs/op
+BenchmarkOp/NOT/scan/corp400-16                 	   39700	     15199 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkOp/ADJ/idx/corp400-16                  	  376860	      1565 ns/op	     248 B/op	       5 allocs/op
+BenchmarkOp/ADJ/scan/corp400-16                 	   27776	     21652 ns/op	     248 B/op	       5 allocs/op
+BenchmarkOp/NEAR/idx/corp400-16                 	  270554	      1943 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkOp/NEAR/scan/corp400-16                	   14685	     39123 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkOp/EDGE/idx/corp400-16                 	  101122	      5860 ns/op	    8656 B/op	      29 allocs/op
+BenchmarkOp/EDGE/scan/corp400-16                	  120794	      4746 ns/op	     248 B/op	       5 allocs/op
+BenchmarkOp/MSM/idx/corp400-16                  	    4006	    136348 ns/op	   54912 B/op	     120 allocs/op
+BenchmarkOp/MSM/scan/corp400-16                 	    1464	    381799 ns/op	  174104 B/op	     407 allocs/op
+BenchmarkOp/AND/idx/corp2000-16                 	   47551	     12105 ns/op	   19064 B/op	      12 allocs/op
+BenchmarkOp/AND/scan/corp2000-16                	    4959	    129142 ns/op	   12920 B/op	      11 allocs/op
+BenchmarkOp/OR/idx/corp2000-16                  	   26238	     21150 ns/op	   27257 B/op	      13 allocs/op
+BenchmarkOp/OR/scan/corp2000-16                 	    4377	    137239 ns/op	   21112 B/op	      12 allocs/op
+BenchmarkOp/NOT/idx/corp2000-16                 	   51952	     11043 ns/op	   15736 B/op	      11 allocs/op
+BenchmarkOp/NOT/scan/corp2000-16                	    7692	     84599 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkOp/ADJ/idx/corp2000-16                 	   70684	      8373 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkOp/ADJ/scan/corp2000-16                	    4543	    132320 ns/op	    1016 B/op	       7 allocs/op
+BenchmarkOp/NEAR/idx/corp2000-16                	   61177	      9041 ns/op	    4088 B/op	       9 allocs/op
+BenchmarkOp/NEAR/scan/corp2000-16               	    1540	    351445 ns/op	    4088 B/op	       9 allocs/op
+BenchmarkOp/EDGE/idx/corp2000-16                	   15675	     43804 ns/op	   44832 B/op	      40 allocs/op
+BenchmarkOp/EDGE/scan/corp2000-16               	   22814	     26732 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkOp/MSM/idx/corp2000-16                 	     794	    694907 ns/op	  272000 B/op	     570 allocs/op
+BenchmarkOp/MSM/scan/corp2000-16                	     304	   1999251 ns/op	  873212 B/op	    2010 allocs/op
 PASS
-ok  	siaod-hw5-irindex/internal/ir	11.511s
+ok  	siaod-hw5-irindex/internal/ir	31.169s
