@@ -1,33 +1,33 @@
 File: concmap.test
-Build ID: 8cd9423345167f3679be08a02571e845ca890674
+Build ID: bc5f16c9e2b4e2e358a32134ca89d9350d3f62a6
 Type: cpu
-Time: 2026-05-24 21:49:31 MSK
-Duration: 2.08s, Total samples = 22.71s (1092.77%)
-Showing nodes accounting for 22.29s, 98.15% of 22.71s total
-Dropped 53 nodes (cum <= 0.11s)
+Time: 2026-05-30 16:48:31 MSK
+Duration: 2.09s, Total samples = 26.18s (1250.77%)
+Showing nodes accounting for 25.75s, 98.36% of 26.18s total
+Dropped 44 nodes (cum <= 0.13s)
       flat  flat%   sum%        cum   cum%
-    10.14s 44.65% 44.65%     10.20s 44.91%  sync/atomic.(*Int32).Add (inline)
-     2.33s 10.26% 54.91%      2.33s 10.26%  aeshashbody
-     1.77s  7.79% 62.70%     20.45s 90.05%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Get
-     1.71s  7.53% 70.23%     22.33s 98.33%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1.1
-     1.25s  5.50% 75.74%      1.49s  6.56%  hash/maphash.(*Hash).WriteString
-     0.96s  4.23% 79.96%      0.96s  4.23%  hash/maphash.(*Hash).initSeed
-     0.96s  4.23% 84.19%      0.96s  4.23%  memeqbody
-     0.71s  3.13% 87.32%      6.52s 28.71%  siaod-hw4-concmap/internal/concmap.makeDefaultHashFunc[go.shape.string].func1
-     0.62s  2.73% 90.05%      4.05s 17.83%  hash/maphash.(*Hash).Sum64
-     0.57s  2.51% 92.56%      7.09s 31.22%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).bucketOf (inline)
-     0.29s  1.28% 93.84%      9.41s 41.44%  sync.(*RWMutex).RLock (inline)
-     0.24s  1.06% 94.89%      0.24s  1.06%  runtime.duffzero
-     0.23s  1.01% 95.90%      0.23s  1.01%  runtime.memmove
-     0.21s  0.92% 96.83%      0.21s  0.92%  runtime.memequal
-     0.14s  0.62% 97.45%      0.14s  0.62%  runtime.memhash
-     0.12s  0.53% 97.97%      0.12s  0.53%  sync/atomic.(*Uint64).Add (inline)
-     0.03s  0.13% 98.11%      0.18s  0.79%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).resize
-     0.01s 0.044% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Put
-         0     0% 98.15%      2.47s 10.88%  hash/maphash.rthash (inline)
-         0     0% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1
-         0     0% 98.15%      0.29s  1.28%  siaod-hw4-concmap/internal/concmap.fillConc
-         0     0% 98.15%      1.08s  4.76%  sync.(*RWMutex).RUnlock (inline)
-         0     0% 98.15%     22.34s 98.37%  testing.(*B).RunParallel.func1
-         0     0% 98.15%      0.25s  1.10%  testing.(*B).launch
-         0     0% 98.15%      0.31s  1.37%  testing.(*B).runN
+    12.11s 46.26% 46.26%     12.14s 46.37%  sync/atomic.(*Int32).Add (inline)
+     2.58s  9.85% 56.11%      2.58s  9.85%  aeshashbody
+     2.12s  8.10% 64.21%     23.96s 91.52%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Get
+     1.73s  6.61% 70.82%     25.92s 99.01%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1.1
+     1.28s  4.89% 75.71%      1.76s  6.72%  hash/maphash.(*Hash).WriteString
+     1.15s  4.39% 80.10%      1.15s  4.39%  memeqbody
+     0.99s  3.78% 83.88%      0.99s  3.78%  hash/maphash.(*Hash).initSeed
+     0.89s  3.40% 87.28%      7.40s 28.27%  siaod-hw4-concmap/internal/concmap.makeDefaultHashFunc[go.shape.string].func1
+     0.69s  2.64% 89.92%      4.36s 16.65%  hash/maphash.(*Hash).Sum64
+     0.48s  1.83% 91.75%      0.48s  1.83%  runtime.memmove
+     0.47s  1.80% 93.54%      7.87s 30.06%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).bucketOf (inline)
+     0.35s  1.34% 94.88%      0.35s  1.34%  runtime.duffzero
+     0.31s  1.18% 96.07%      0.31s  1.18%  runtime.memequal
+     0.27s  1.03% 97.10%     10.95s 41.83%  sync.(*RWMutex).RLock (inline)
+     0.18s  0.69% 97.78%      0.18s  0.69%  sync/atomic.(*Uint64).Add (inline)
+     0.14s  0.53% 98.32%      0.14s  0.53%  sync/atomic.(*Pointer[go.shape.struct { siaod-hw4-concmap/internal/concmap.buckets []siaod-hw4-concmap/internal/concmap.bucket[go.shape.string,go.shape.int]; siaod-hw4-concmap/internal/concmap.mask uint64; siaod-hw4-concmap/internal/concmap.bits uint8 }]).Load (inline)
+     0.01s 0.038% 98.36%      0.18s  0.69%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).Put
+         0     0% 98.36%      2.68s 10.24%  hash/maphash.rthash (inline)
+         0     0% 98.36%      0.14s  0.53%  siaod-hw4-concmap/internal/concmap.(*Map[go.shape.string,go.shape.int]).table (inline)
+         0     0% 98.36%      0.18s  0.69%  siaod-hw4-concmap/internal/concmap.BenchmarkParallelGetHit.func1.1
+         0     0% 98.36%      0.18s  0.69%  siaod-hw4-concmap/internal/concmap.fillConc
+         0     0% 98.36%      1.45s  5.54%  sync.(*RWMutex).RUnlock (inline)
+         0     0% 98.36%     25.92s 99.01%  testing.(*B).RunParallel.func1
+         0     0% 98.36%      0.15s  0.57%  testing.(*B).launch
+         0     0% 98.36%      0.19s  0.73%  testing.(*B).runN
