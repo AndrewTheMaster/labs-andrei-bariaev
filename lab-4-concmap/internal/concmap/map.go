@@ -65,12 +65,12 @@ type node[K comparable, V any] struct {
 type segmentTable[K comparable, V any] struct {
 	buckets []bucket[K, V]
 	mask    uint64
+	bits    uint8 // len(buckets) == 1<<bits
 }
 
 // Map[K,V] потокобезопасная хеш-таблица.
 type Map[K comparable, V any] struct {
 	tab           atomic.Pointer[segmentTable[K, V]]
-	bucketBits    uint8
 	maxBucketBits uint8
 	loadFactor    float64
 	hash          func(K) uint64
@@ -84,7 +84,6 @@ func New[K comparable, V any](bucketBits uint8, opts ...Option[K, V]) *Map[K, V]
 		panic("concmap: bucketBits должно быть в [1..26]")
 	}
 	m := &Map[K, V]{
-		bucketBits:    bucketBits,
 		maxBucketBits: 26,
 		loadFactor:    defaultLoadFactor,
 	}
@@ -103,6 +102,7 @@ func newSegmentTable[K comparable, V any](bucketBits uint8) *segmentTable[K, V] 
 	return &segmentTable[K, V]{
 		buckets: make([]bucket[K, V], n),
 		mask:    n - 1,
+		bits:    bucketBits,
 	}
 }
 
@@ -158,7 +158,7 @@ func (m *Map[K, V]) resizeThreshold(t *segmentTable[K, V]) uint64 {
 }
 
 func (m *Map[K, V]) needsResize(t *segmentTable[K, V]) bool {
-	return m.size.Load() > m.resizeThreshold(t) && m.bucketBits < m.maxBucketBits
+	return m.size.Load() > m.resizeThreshold(t) && t.bits < m.maxBucketBits
 }
 
 func (m *Map[K, V]) insertInto(t *segmentTable[K, V], n *node[K, V]) {
@@ -177,11 +177,8 @@ func (m *Map[K, V]) resize() {
 	if !m.needsResize(old) {
 		return
 	}
-	if m.bucketBits >= m.maxBucketBits {
-		return
-	}
 
-	newBits := m.bucketBits + 1
+	newBits := old.bits + 1
 	newTab := newSegmentTable[K, V](newBits)
 
 	for i := range old.buckets {
@@ -205,7 +202,6 @@ func (m *Map[K, V]) resize() {
 	}
 
 	m.tab.Store(newTab)
-	m.bucketBits = newBits
 
 	for i := range old.buckets {
 		old.buckets[i].mu.Unlock()
@@ -214,39 +210,52 @@ func (m *Map[K, V]) resize() {
 
 // Put вставляет или перезаписывает ключ. Если ключ новый — size увеличивается; при переполнении — resize.
 func (m *Map[K, V]) Put(key K, val V) {
-	t := m.table()
-	b := m.bucketOf(t, key)
-	b.mu.Lock()
-	for cur := b.head; cur != nil; cur = cur.next {
-		if cur.key == key {
-			cur.val = val
+	for {
+		t := m.table()
+		b := m.bucketOf(t, key)
+		b.mu.Lock()
+		if m.table() != t {
 			b.mu.Unlock()
-			return
+			continue
 		}
-	}
-	b.head = &node[K, V]{key: key, val: val, next: b.head}
-	m.size.Add(1)
-	b.mu.Unlock()
-	if m.needsResize(t) {
-		m.resize()
+		for cur := b.head; cur != nil; cur = cur.next {
+			if cur.key == key {
+				cur.val = val
+				b.mu.Unlock()
+				return
+			}
+		}
+		b.head = &node[K, V]{key: key, val: val, next: b.head}
+		m.size.Add(1)
+		b.mu.Unlock()
+		if m.needsResize(m.table()) {
+			m.resize()
+		}
+		return
 	}
 }
 
-// Get без блокировки чужих бакетов; разделяет RLock только с братскими операциями в том же бакете.
+// Get без блокировки чужих бакетов; разделяет RLock только с операциями в том же бакете.
 func (m *Map[K, V]) Get(key K) (V, bool) {
-	t := m.table()
-	b := m.bucketOf(t, key)
-	b.mu.RLock()
-	for cur := b.head; cur != nil; cur = cur.next {
-		if cur.key == key {
-			v := cur.val
+	for {
+		t := m.table()
+		b := m.bucketOf(t, key)
+		b.mu.RLock()
+		if m.table() != t {
 			b.mu.RUnlock()
-			return v, true
+			continue
 		}
+		for cur := b.head; cur != nil; cur = cur.next {
+			if cur.key == key {
+				v := cur.val
+				b.mu.RUnlock()
+				return v, true
+			}
+		}
+		var zero V
+		b.mu.RUnlock()
+		return zero, false
 	}
-	var zero V
-	b.mu.RUnlock()
-	return zero, false
 }
 
 // Merge как в JDK: если ключа не было — сохраняет value без вызова merger и возвращает его;
@@ -255,41 +264,56 @@ func (m *Map[K, V]) Merge(key K, val V, merger func(existing, incoming V) V) V {
 	if merger == nil {
 		panic("concmap: Merge(..., merger: nil)")
 	}
-	t := m.table()
-	b := m.bucketOf(t, key)
-	b.mu.Lock()
-	for cur := b.head; cur != nil; cur = cur.next {
-		if cur.key == key {
-			nv := merger(cur.val, val)
-			cur.val = nv
+	for {
+		t := m.table()
+		b := m.bucketOf(t, key)
+		b.mu.Lock()
+		if m.table() != t {
 			b.mu.Unlock()
-			return nv
+			continue
 		}
+		for cur := b.head; cur != nil; cur = cur.next {
+			if cur.key == key {
+				nv := merger(cur.val, val)
+				cur.val = nv
+				b.mu.Unlock()
+				return nv
+			}
+		}
+		b.head = &node[K, V]{key: key, val: val, next: b.head}
+		m.size.Add(1)
+		b.mu.Unlock()
+		if m.needsResize(m.table()) {
+			m.resize()
+		}
+		return val
 	}
-	b.head = &node[K, V]{key: key, val: val, next: b.head}
-	m.size.Add(1)
-	b.mu.Unlock()
-	if m.needsResize(t) {
-		m.resize()
-	}
-	return val
 }
 
-// Clear удаляет все пары под глобальным порядком блокировки бакетов (слева направо) против взаимоблокировок.
+// Clear удаляет все пары под resizeMu и блокировкой всех бакетов текущей таблицы.
 func (m *Map[K, V]) Clear() {
 	m.resizeMu.Lock()
 	defer m.resizeMu.Unlock()
 
-	t := m.table()
-	for i := range t.buckets {
-		t.buckets[i].mu.Lock()
-	}
-	for i := range t.buckets {
-		t.buckets[i].head = nil
-	}
-	m.size.Store(0)
-	for i := range t.buckets {
-		t.buckets[i].mu.Unlock()
+	for {
+		t := m.table()
+		for i := range t.buckets {
+			t.buckets[i].mu.Lock()
+		}
+		if m.table() != t {
+			for i := range t.buckets {
+				t.buckets[i].mu.Unlock()
+			}
+			continue
+		}
+		for i := range t.buckets {
+			t.buckets[i].head = nil
+		}
+		m.size.Store(0)
+		for i := range t.buckets {
+			t.buckets[i].mu.Unlock()
+		}
+		return
 	}
 }
 
@@ -307,10 +331,15 @@ func (m *Map[K, V]) BucketCount() int {
 // не бросает при конкуррентной модификации, но может не видеть одновременно вставленные элементы других потоков.
 // Для каждого бакета чтение идёт под RLock, поэтому структура цепочки в бакете стабильна.
 func (m *Map[K, V]) Range(fn func(key K, val V) bool) {
+restart:
 	t := m.table()
 	for i := range t.buckets {
 		b := &t.buckets[i]
 		b.mu.RLock()
+		if m.table() != t {
+			b.mu.RUnlock()
+			goto restart
+		}
 		for cur := b.head; cur != nil; cur = cur.next {
 			if !fn(cur.key, cur.val) {
 				b.mu.RUnlock()

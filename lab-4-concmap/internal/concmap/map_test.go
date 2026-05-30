@@ -106,6 +106,45 @@ func TestResizePreservesKeys(t *testing.T) {
 	}
 }
 
+func TestConcurrentResizePutGet(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	m := New[string, int](2) // 4 бакета → частый rehash
+	want := make(map[string]int)
+	var wantMu sync.Mutex
+	var wg sync.WaitGroup
+	const workers = 32
+	const iters = 40000
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				key := fmt.Sprintf("k_%d_%d", id, i%300)
+				v := id*1000 + i
+				m.Put(key, v)
+				wantMu.Lock()
+				want[key] = v
+				exp := want[key]
+				wantMu.Unlock()
+				got, ok := m.Get(key)
+				if !ok || got != exp {
+					t.Errorf("drift key=%s exp=%v got=%v,%v buckets=%d", key, exp, got, ok, m.BucketCount())
+					return
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+	wantMu.Lock()
+	nWant := len(want)
+	wantMu.Unlock()
+	if uint64(nWant) != m.Size() {
+		t.Fatalf("size want=%d m=%d buckets=%d", nWant, m.Size(), m.BucketCount())
+	}
+}
+
 func TestResizeMatchesUnsafeOracle(t *testing.T) {
 	ref := NewUnsafe[string, int]()
 	m := New[string, int](3) // 8 бакетов, частые rehash
