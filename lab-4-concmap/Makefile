@@ -1,4 +1,4 @@
-BENCH_KEYS   ?= 4096,65536
+BENCH_KEYS   ?= 4096,8192,16384,32768,65536
 BENCH_TIME   ?= 600ms
 BENCH_FILTER ?= ^Benchmark
 METRICS_OUT  ?= metrics
@@ -51,6 +51,29 @@ collect:
 	for f in $(RAW_DIR)/series_*.tsv; do \
 	  [ -f "$$f" ] && sort -n -o "$$f" "$$f" || true; \
 	done
+	@for b in BenchmarkParallelGetHit BenchmarkParallelPutOverwrite BenchmarkParallelMixedRW; do \
+	  awk -F',' -v B="$$b" ' \
+	    $$1==B && $$2=="plain"   { plain[$$3]=$$5+0 } \
+	    $$1==B && $$2=="concmap" { conc[$$3]=$$5+0 } \
+	    END { for (k in plain) if (k in conc && conc[k]>0) print k, plain[k]/conc[k] }' \
+	    $(RAW_DIR)/benchmarks.csv | sort -n > "$(RAW_DIR)/speedup_$$b.tsv"; \
+	done
+	@awk -F',' ' \
+	  function row(b, conc, plain,   c, p) { \
+	    c = conc + 0; p = plain + 0; print b, c, p } \
+	  $$3==65536 { \
+	    if ($$1=="BenchmarkParallelGetHit" && $$2=="concmap") gc=$$5; \
+	    if ($$1=="BenchmarkParallelGetHit" && $$2=="plain")   gp=$$5; \
+	    if ($$1=="BenchmarkParallelPutOverwrite" && $$2=="concmap") pc=$$5; \
+	    if ($$1=="BenchmarkParallelPutOverwrite" && $$2=="plain")   pp=$$5; \
+	    if ($$1=="BenchmarkParallelMixedRW" && $$2=="concmap") mc=$$5; \
+	    if ($$1=="BenchmarkParallelMixedRW" && $$2=="plain")   mp=$$5; \
+	    if ($$1=="BenchmarkRangeFullTable" && $$2=="concmap") rc=$$5; \
+	    if ($$1=="BenchmarkRangeFullTable" && $$2=="plain")   rp=$$5 } \
+	  END { \
+	    row("Get-hit", gc, gp); row("Put overwrite", pc, pp); \
+	    row("Mixed RW", mc, mp); row("Range", rc, rp) }' \
+	  $(RAW_DIR)/benchmarks.csv > "$(RAW_DIR)/bars_65536.tsv"
 
 metrics: collect plot
 

@@ -102,34 +102,38 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 
 ### 3.2 Методика замеров
 
-- **`BENCH_KEYS`** — размеры предзаполненной таблицы (по умолчанию `4096,65536`);
+- **`BENCH_KEYS`** — `4096,8192,16384,32768,65536` (степени двойки, **5 точек** на кривой);
+- **`benchtime=600ms`**, `BENCH_BUCKET_BITS=12` (по умолчанию в бенчах);
 - параллельные сценарии — `testing.B.RunParallel` (`GOMAXPROCS` потоков);
-- однопоточный `Get` — отдельный бенч `BenchmarkSequentialGetHit` (сравнение накладных расходов синхронизации).
+- графики: `make metrics` → CSV/TSV + gnuplot (`plot_metrics.gnuplot`); на оси X — **только измеренные** размеры (`xtic` из данных), без ложной интерполяции;
+- дополнительно: **speedup** `plain/concmap`, **столбцы @ 64k**, **дашборд 2×2**, однопоточный Get.
 
 ### 3.3 Параллельные сценарии
 
-#### Таблица 3.1 — `ns/op` (`BENCH_KEYS=4096,65536`, `benchtime=600ms`, [`metrics/raw/benchmarks.csv`](metrics/raw/benchmarks.csv))
+Полный прогон — [`metrics/raw/benchmarks.csv`](metrics/raw/benchmarks.csv) (40 строк). Ниже — крайние размеры; кривые по всем пяти точкам — на рис. 3.1–3.4.
+
+#### Таблица 3.1 — `ns/op` (фрагмент, `benchtime=600ms`)
 
 | workload | impl | keys | ns/op |
 |:---------|:-----|-----:|------:|
-| ParallelGetHit | concmap | 4096 | 10.75 |
-| ParallelGetHit | plain | 4096 | 90.34 |
-| ParallelGetHit | concmap | 65536 | 9.565 |
-| ParallelGetHit | plain | 65536 | 42.30 |
-| ParallelPutOverwrite | concmap | 4096 | 10.54 |
-| ParallelPutOverwrite | plain | 4096 | 137.8 |
-| ParallelPutOverwrite | concmap | 65536 | 17.98 |
-| ParallelPutOverwrite | plain | 65536 | 176.9 |
-| ParallelMixedRW | concmap | 4096 | 24.68 |
-| ParallelMixedRW | plain | 4096 | 85.54 |
-| ParallelMixedRW | concmap | 65536 | 25.78 |
-| ParallelMixedRW | plain | 65536 | 107.5 |
-| RangeFullTable | concmap | 4096 | 59063 |
-| RangeFullTable | plain | 4096 | 36341 |
-| RangeFullTable | concmap | 65536 | 1.760×10⁶ |
-| RangeFullTable | plain | 65536 | 1.040×10⁶ |
+| ParallelGetHit | concmap | 4096 | 12.12 |
+| ParallelGetHit | plain | 4096 | 83.30 |
+| ParallelGetHit | concmap | 65536 | 14.65 |
+| ParallelGetHit | plain | 65536 | 48.85 |
+| ParallelPutOverwrite | concmap | 4096 | 14.93 |
+| ParallelPutOverwrite | plain | 4096 | 148.1 |
+| ParallelPutOverwrite | concmap | 65536 | 31.52 |
+| ParallelPutOverwrite | plain | 65536 | 184.2 |
+| ParallelMixedRW | concmap | 4096 | 23.86 |
+| ParallelMixedRW | plain | 4096 | 77.12 |
+| ParallelMixedRW | concmap | 65536 | 23.01 |
+| ParallelMixedRW | plain | 65536 | 95.88 |
+| RangeFullTable | concmap | 4096 | 72794 |
+| RangeFullTable | plain | 4096 | 45225 |
+| RangeFullTable | concmap | 65536 | 1.875×10⁶ |
+| RangeFullTable | plain | 65536 | 9.541×10⁵ |
 
-#### Рисунок 3.1 — Parallel Get-hit
+#### Рисунок 3.1 — Parallel Get-hit (5 точек)
 
 ![Parallel get hit](./metrics/plots/latency_parallel_get_hit.png)
 
@@ -141,16 +145,28 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 
 ![Parallel mixed RW](./metrics/plots/latency_parallel_mixed_rw.png)
 
-#### Рисунок 3.4 — Range full table
+#### Рисунок 3.4 — Range (log Y)
 
 ![Range full](./metrics/plots/latency_range_full_table.png)
 
-**Анализ** (отношение `plain / concmap` по таблице 3.1).
+#### Рисунок 3.5 — Ускорение plain / concmap
 
-- **Parallel Get-hit:** **~4–9×** быстрее `concmap` — чтения не делят один глобальный `RLock` с записью в другие бакеты.
-- **Put overwrite:** **~10–13×** — `Plain` сериализует все мутации и блокирует читателей.
-- **Mixed RW:** **~3,5–4×** — преимущество сохраняется, но меньше из-за локальных `Merge`/`Put`.
-- **Range:** `concmap` **медленнее** `Plain` (**~1,6–1,7×**): много коротких `RLock` по бакетам и обход цепочек вместо одного `RLock` на встроенную `map`; абсолютная стоимость велика на 65k ключей.
+![Speedup](./metrics/plots/speedup_parallel.png)
+
+#### Рисунок 3.6 — Сводка @ 65 536 ключей (столбцы)
+
+![Bars 64k](./metrics/plots/bars_parallel_64k.png)
+
+#### Рисунок 3.7 — Дашборд (2×2, для слайда)
+
+![Dashboard](./metrics/plots/dashboard_parallel.png)
+
+**Анализ** (по всему диапазону ключей и табл. 3.1).
+
+- **Parallel Get-hit:** `concmap` стабильно **~12–15 ns/op**; `plain` **~48–83 ns/op** → ускорение **~3,5–7×** (рис. 3.5). На 16k у `plain` локальный минимум (~49 ns) — меньше contention при длинных цепочках в concmap.
+- **Put overwrite:** **~6–10×** на 64k, до **~10×** на 4k — глобальный замок `Plain` сериализует записи и блокирует читателей.
+- **Mixed RW:** **~3–4×** по всему диапазону.
+- **Range:** `concmap` **медленнее** `Plain` (**~1,6–2×**, рис. 3.4 с log Y): много `RLock` по бакетам + обход цепочек vs один `RLock` на builtin-`map`.
 
 ### 3.4 Однопоточный Get (concmap / plain / unsafe)
 
@@ -162,15 +178,19 @@ make profile       # CPU/heap prof → flamegraph HTML/PNG
 | `concmap` | цепочки + `RLock` на бакет |
 | `plain` | `map` + `RLock` на всю таблицу |
 
-Таблица 3.2 — `BenchmarkSequentialGetHit`, `ns/op` (тот же прогон, что табл. 3.1):
+Таблица 3.2 — `BenchmarkSequentialGetHit`, `ns/op` (тот же прогон; кривая — рис. 3.8):
 
 | impl | keys=4096 | keys=65536 |
 |:-----|----------:|-----------:|
-| unsafe | 15.00 | 23.89 |
-| plain | 20.70 | 41.58 |
-| concmap | 38.04 | 322.9 |
+| unsafe | 28.21 | 22.99 |
+| plain | 44.99 | 36.59 |
+| concmap | 77.81 | 161.8 |
 
-**Анализ:** в **однопотоке** `unsafe` быстрее всех; `plain` обгоняет `concmap`, потому что встроенная `map` O(1) против обхода цепочки (на 65k ключей разрыв особенно большой). Выигрыш `concmap` проявляется в **§3.3** при `RunParallel`, когда `Plain` блокирует всех читателей на любой записи. Пересчёт: `make metrics`.
+#### Рисунок 3.8 — Однопоточный Get-hit
+
+![Sequential get](./metrics/plots/latency_sequential_get.png)
+
+**Анализ:** в **однопотоке** `unsafe` быстрее всех; `plain` обгоняет `concmap`, потому что встроенная `map` O(1) против обхода цепочки (на 65k ключей у concmap длиннее цепочки — рост до ~162 ns/op). Выигрыш `concmap` — в **§3.3** при `RunParallel`. Пересчёт: `make metrics`.
 
 ---
 
@@ -239,7 +259,7 @@ HTML: [`flamegraph_mem_parallel_get_conc.html`](metrics/plots/flamegraph_mem_par
 1. Реализована сегментированная hash-map с **закрытой адресацией** и API по ТЗ; чтения локализуют блокировки на бакет.
 2. **Rehash (resize)** при load factor 0.75: удвоение бакетов, перенос цепочек, атомарная подмена таблицы; **retry** при `m.table() != t` после захвата замка — корректность при concurrent rehash.
 3. Три уровня сравнения: **`Unsafe`**, **`Plain`**, **`Map`** — покрывают ТЗ и параллельные бенчи (табл. 3.1–3.2, графики в `metrics/plots/`).
-4. На параллельных нагрузках `Map` **~4–13×** быстрее `Plain` (Get/Put); на **`Range`** — медленнее из-за множества `RLock` и цепочек.
+4. На параллельных нагрузках `Map` **~3,5–10×** быстрее `Plain` (кривые и speedup, рис. 3.1–3.7); на **`Range`** — медленнее из-за множества `RLock` и цепочек.
 5. Корректность: **`-race`**, оракул-тесты, стресс `Merge`, **`TestConcurrentResizePutGet`**.
 6. Ограничения: resize блокирует все старые бакеты; старые таблицы не освобождаются; `Size` при гонках с `Clear` — без строгого снимка (как у CHM).
 
