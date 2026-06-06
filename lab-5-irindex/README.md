@@ -1,11 +1,12 @@
 # lab-5-irindex
 
-Обратный позиционный индекс: булевы запросы (AND/OR/NOT, ADJ, NEAR, границы документа), BM25, сжатие на диске (**delta + bit-packing**), чтение через **mmap**, консольный стенд запросов.
+Обратный позиционный индекс: булевы запросы (AND/OR/NOT, ADJ, NEAR, границы документа), BM25, сжатие на диске (**PForDelta + varint|bitpack**), чтение через **mmap**, консольный стенд **`irquery`**.
 
 ## Требования
 
 - Go 1.22+
-- Распакованный дамп ruwiki (опционально для вики-бенчей и сборки индекса)
+- gnuplot (графики `make plot`)
+- Распакованный дамп ruwiki (вики-бенчи, сборка индекса)
 
 По умолчанию ищется XML:
 
@@ -14,7 +15,6 @@
 3. `../ruwiki-latest-pages-articles.xml` (корень репозитория SIAOD)
 
 ```bash
-# если дамп лежит в корне репозитория:
 ln -sf ../ruwiki-latest-pages-articles.xml data/ruwiki-latest-pages-articles.xml
 # или
 export WIKI_XML=../ruwiki-latest-pages-articles.xml
@@ -23,87 +23,127 @@ export WIKI_XML=../ruwiki-latest-pages-articles.xml
 ## Сборка
 
 ```bash
-go build -o bin/irindex ./cmd/irindex
-go build -o bin/irquery ./cmd/irquery
+make build   # bin/irindex, bin/irquery
 ```
 
 ## Индекс с вики
 
-Сборка идёт через `AddLean` (тексты статей в RAM не копируются). Прогресс: `WIKI_PROGRESS=5000` (каждые N документов в stderr).
+Сборка через `AddLean` (тексты в RAM не копируются). Прогресс: `WIKI_PROGRESS=5000`.
 
 ```bash
-# лимит для проверки (~25 с на 5k статей после оптимизации Add):
-go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 5000 -out data/index.irx
-
-# все страницы (долго — весь XML):
-go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 0 -out data/index.irx
-
+go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 20000 -out data/index.irx
 make build-index WIKI_XML=../ruwiki-latest-pages-articles.xml
 ```
 
-Печатаются: время построения, RAM (КБ), размер `.irx` (КБ), коэффициент сжатия.
+Формат **`IRIXV3PD`**: doc Δ — **PForDelta**; tf/pos Δ — **varint|bitpack (optimal, V4)**; заголовки wiki в `.irx`.
 
-Формат файла: magic **`IRIXV3PD`**, doc Δ — **PForDelta**, tf/pos — **varint|bitpack**. Заголовки wiki в `.irx`.
+**Ruwiki N=20 000** (прогон 2026-06-06): построение **~47 с**, `.irx` **187 088 КБ**, RAM/файл **≈8.3×**.
 
-## Стенд запросов (консоль)
-
-По mmap-индексу на диске:
+## Стенд запросов
 
 ```bash
-./bin/irquery -index data/index.irx
-```
-
-Одна команда:
-
-```bash
-./bin/irquery -index data/index.irx -q 'россия AND город'
-./bin/irquery -index data/index.irx -q 'ADJ(россия, город)' -limit 50
+./bin/irquery -index data/index.irx -q 'россия AND москва' -limit 10
+./bin/irquery -index data/index.irx -q 'ADJ(великая, отечественная)' -limit 5
 ./bin/irquery -index data/index.irx -q 'история AND NOT(россии AND китая)' -limit 10
+./bin/irquery -index data/index.irx -q 'россия AND москва' -rank -limit 10
 ```
 
-Вывод: **docID**, **заголовок статьи**, **terms×tf** (можно проверить глазами).  
-**`-rank`** — BM25 после булева фильтра (`-k1`, `-b`). В REPL: `:rank on|off`.  
-**MSM(...)** на дисковом индексе недоступен (в `.irx` нет текстов документов). Термы — UTF-8 (кириллица).
+Вывод: **docID**, **заголовок**, **terms×tf**. **MSM(...)** только in-memory (в `.irx` нет текстов).
 
-## Тесты и бенчмарки
+## Тесты и метрики
 
 ```bash
 make test
 
-# синтетика (по умолчанию N=400,2000)
+# синтетика → metrics/raw/benchmarks.csv + plots
 make collect plot
 
-# вики: нужен распакованный XML
-export WIKI_XML=../ruwiki-latest-pages-articles.xml
-make bench-wiki BENCH_CORPUS=5000,10000,20000 BENCH_TIME=300ms \
-  BENCH_FILTER='^Benchmark(QueryEvalMixed|Op)'
-# результат: metrics/raw/benchmarks_wiki.txt
-make collect plot
+# ruwiki → metrics/raw/benchmarks_wiki.csv + wiki plots
+make bench-wiki parse-wiki plot \
+  WIKI_XML=../ruwiki-latest-pages-articles.xml \
+  BENCH_CORPUS=5000,10000,20000 BENCH_TIME=300ms
 
+# сравнение кодеков (posting payload, КБ)
+make collect-compression WIKI_XML=../ruwiki-latest-pages-articles.xml
+
+# pprof + flamegraph HTML/PNG
 make profile
 ```
 
-Переменные:
-
-| Переменная | Значение по умолчанию |
-|:-----------|:----------------------|
+| Переменная | По умолчанию |
+|:-----------|:-------------|
 | `BENCH_CORPUS` | `400,2000` |
-| `BENCH_FILTER` | `^Benchmark(BuildIndex\|Query\|Op)` |
-| `WIKI_XML` | см. `ResolveCorpusPath()` |
+| `WIKI_BENCH_CORPUS` | `5000,10000,20000` |
+| `BENCH_TIME` | `500ms` |
+
+### Сжатие posting lists (КБ, `metrics/raw/compression_sizes.tsv`)
+
+| Корпус | V1 varint | V2 bitpack | V3 P4+bitpack | **V4 P4+opt (боевой)** |
+|:-------|----------:|-----------:|--------------:|-----------------------:|
+| синт. N=2000 | 76 | 38 | 37 | **37** |
+| ruwiki 20k | 120 522 | 161 326 | 173 422 | **153 645** |
+
+V4 — формат `SaveCompressed`; V3 — отдельная колонка «P4 + только bitpack tf/pos».
+
+### Бенчмарки синтетика (`benchmarks.csv`, N=2000)
+
+| Сценарий | idx ns/op | scan ns/op |
+|:---------|----------:|-----------:|
+| BuildIndex | 10.8M | — |
+| QueryEvalMixed | 769k | 1.15M |
+| BenchmarkOp AND | 10.9k | 166k |
+| BenchmarkOp ADJ | 7.6k | 125k |
+| BenchmarkOp Complex | 36.2k | 345k |
+
+### Бенчмарки ruwiki (`benchmarks_wiki.csv`, N=20 000, idx)
+
+| Запрос | ns/op |
+|:-------|------:|
+| `ADJ(великая, отечественная)` | **7.0k** |
+| `NEAR(3, великая, отечественная)` | **9.3k** |
+| `россия AND москва` | **38.0k** |
+| `россия OR москва` | 69.8k |
+| `NOT россия` | 189k |
+| `(россия OR москва) AND история AND NOT футбол` | 518k |
+
+`россия AND москва`: idx **38 µs** vs scan **250 µs** (**≈6.6×**).
+
+## Графики (`metrics/plots/`)
+
+| Файл | Содержание |
+|:-----|:-----------|
+| `build_index_ns.png` | построение индекса (синт.) |
+| `query_idx_vs_scan.png` | смешанный запрос idx vs scan |
+| `ops_idx_ns.png` | операторы по отдельности (синт.) |
+| `wiki_ops_idx_bar.png` | ruwiki: ns/op, полные подписи запросов |
+| `wiki_ops_idx_scale.png` | ruwiki: масштабирование по N |
+| `wiki_op_AND_idx_vs_scan.png` | ruwiki AND idx vs scan |
+| `pprof_cpu_query_idx.png` | CPU профиль запроса |
+| `pprof_mem_query_idx.png` | alloc профиль запроса |
+| `flamegraph_cpu_query_idx.png` | flamegraph CPU (запрос) |
+| `flamegraph_mem_query_idx.png` | flamegraph mem (запрос) |
+| `flamegraph_cpu_build_index.png` | flamegraph CPU (сборка) |
+| `flamegraph_mem_build_index.png` | flamegraph mem (сборка) |
+
+Пересборка всех PNG:
+
+```bash
+make collect plot
+make bench-wiki parse-wiki plot WIKI_XML=../ruwiki-latest-pages-articles.xml
+make profile
+```
 
 ## Структура
 
 | Путь | Назначение |
 |:-----|:-----------|
-| `internal/ir/index.go` | RAM-индекс, `posArena` |
-| `internal/ir/storage.go` | `SaveCompressed`, `OpenMMapIndex`, bit-packing |
-| `internal/ir/bitpack.go` | упаковка потоков uint32 |
-| `internal/ir/eval_ctx.go` | оценка запросов с переиспользованием буферов |
-| `cmd/irindex` | построение `.irx` из XML |
+| `internal/ir/p4delta.go` | PForDelta (doc Δ) |
+| `internal/ir/encode_stream.go` | bitpack / optimal varint|bitpack (tf/pos) |
+| `internal/ir/storage.go` | `SaveCompressed`, `OpenMMapIndex`, `IRIXV3PD` |
+| `cmd/irindex` | построение `.irx` |
 | `cmd/irquery` | REPL / `-q` по mmap |
-| `REPORT.md` | отчёт по лабораторной |
-| `metrics/` | csv, gnuplot, pprof |
+| `plot_metrics.gnuplot` | gnuplot-скрипт |
+| `REPORT.md` | отчёт |
+| `metrics/raw/` | csv, tsv, pprof |
 
-## Отчёт
-
-См. [REPORT.md](REPORT.md). После прогона на вики обновите таблицы: `make collect`, размеры — `go run ./cmd/irindex …`.
+Подробности — [REPORT.md](REPORT.md).

@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-// IRIX V3: doc Δ — PForDelta; tf и pos Δ — varint или bitpack (что меньше).
+// IRIX V3: doc Δ — PForDelta; tf/pos Δ — varint или bitpack (optimal).
 var fileMagic = [8]byte{'I', 'R', 'I', 'X', 'V', '3', 'P', 'D'}
 
 var errBitpackTrunc = errors.New("bitpack: truncated stream")
@@ -46,8 +46,12 @@ func writeChunk(buf *bytes.Buffer, payload []byte) {
 	buf.Write(payload)
 }
 
-// encodePostings: docID Δ — PForDelta; tf и pos Δ — optimal (varint|bitpack).
+// encodePostings: docID Δ — PForDelta; tf/pos Δ — optimal (varint|bitpack). Боевой формат IRIXV3PD.
 func encodePostings(ps []posting) []byte {
+	return encodePostingsP4(ps, encodeOptimalStream)
+}
+
+func encodePostingsP4(ps []posting, tfPos func([]uint32) (byte, []byte)) []byte {
 	var buf bytes.Buffer
 	writeU32(&buf, uint32(len(ps)))
 	if len(ps) == 0 {
@@ -78,8 +82,8 @@ func encodePostings(ps []posting) []byte {
 	}
 
 	docPay := encodePForDelta(docVals)
-	tfCodec, tfPay := encodeOptimalStream(tfVals)
-	posCodec, posPay := encodeOptimalStream(posVals)
+	tfCodec, tfPay := tfPos(tfVals)
+	posCodec, posPay := tfPos(posVals)
 
 	buf.WriteByte(0) // doc codec: PForDelta
 	buf.WriteByte(tfCodec)
@@ -89,6 +93,11 @@ func encodePostings(ps []posting) []byte {
 	writeChunk(&buf, tfPay)
 	writeChunk(&buf, posPay)
 	return buf.Bytes()
+}
+
+// encodePostingsP4Bitpack — V3 baseline (табл. 4.1в): PForDelta doc + bitpack tf/pos.
+func encodePostingsP4Bitpack(ps []posting) []byte {
+	return encodePostingsP4(ps, encodeBitpackStream)
 }
 
 func decodePostings(data []byte) ([]posting, error) {
@@ -143,7 +152,7 @@ func decodePostings(data []byte) ([]posting, error) {
 	if err != nil {
 		return nil, err
 	}
-	tfVals, err := decodeOptimalStream(tfCodec, tfPay, nPost)
+	tfVals, err := decodeStream(tfCodec, tfPay, nPost)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +160,7 @@ func decodePostings(data []byte) ([]posting, error) {
 	for _, tf := range tfVals {
 		nPos += int(tf)
 	}
-	posDeltas, err := decodeOptimalStream(posCodec, posPay, nPos)
+	posDeltas, err := decodeStream(posCodec, posPay, nPos)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +191,14 @@ func decodePostings(data []byte) ([]posting, error) {
 	return out, nil
 }
 
-// SaveCompressed сохраняет индекс (PForDelta + optimal streams + titles).
+// SaveCompressed сохраняет индекс (PForDelta + optimal tf/pos + titles).
 func SaveCompressed(ix *InvIndex, path string) error {
+	return saveIndexFile(ix, path, encodePostings)
+}
+
+type postingsEncoder func([]posting) []byte
+
+func saveIndexFile(ix *InvIndex, path string, encode postingsEncoder) error {
 	var buf bytes.Buffer
 	buf.Write(fileMagic[:])
 	writeU32(&buf, uint32(len(ix.Docs)))
@@ -206,7 +221,7 @@ func SaveCompressed(ix *InvIndex, path string) error {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		raw := encodePostings(ix.postings[k])
+		raw := encode(ix.postings[k])
 		if len(k) > 0xffff {
 			return fmt.Errorf("term too long")
 		}

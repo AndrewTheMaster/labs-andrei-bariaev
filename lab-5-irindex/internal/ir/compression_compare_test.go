@@ -1,112 +1,60 @@
 package ir
 
 import (
-	"bytes"
-	"encoding/binary"
 	"os"
 	"testing"
 )
 
-func putUvarintLegacy(buf *bytes.Buffer, v uint64) {
-	var b [10]byte
-	n := binary.PutUvarint(b[:], v)
-	buf.Write(b[:n])
+func logCompressionRow(t *testing.T, corpus string, n int, v1, v2, v3, v4 int64) {
+	t.Helper()
+	t.Logf("%s N=%d postings KB: V1=%d V2=%d V3_p4bp=%d V4_p4opt=%d",
+		corpus, n, v1/1024, v2/1024, v3/1024, v4/1024)
 }
 
-// encodePostingsVarint — IRIXV1 (delta + uvarint), для сравнения размеров.
-func encodePostingsVarint(ps []posting) []byte {
-	var buf bytes.Buffer
-	putUvarintLegacy(&buf, uint64(len(ps)))
-	var prevDoc uint32
-	for i, p := range ps {
-		if i == 0 {
-			putUvarintLegacy(&buf, uint64(p.DocID))
-		} else {
-			putUvarintLegacy(&buf, uint64(p.DocID-prevDoc))
-		}
-		prevDoc = p.DocID
-		putUvarintLegacy(&buf, uint64(len(p.Poss)))
-		var prevPos uint32
-		for j, pos := range p.Poss {
-			if j == 0 {
-				putUvarintLegacy(&buf, uint64(pos))
-			} else {
-				putUvarintLegacy(&buf, uint64(pos-prevPos))
-			}
-			prevPos = pos
-		}
-	}
-	return buf.Bytes()
+func postPayload(ix *InvIndex, enc postingsEncoder) int64 {
+	return postingsPayloadBytes(ix, enc)
 }
 
-func encodePostingsBitpackLegacy(ps []posting) []byte {
-	var buf bytes.Buffer
-	writeU32(&buf, uint32(len(ps)))
-	if len(ps) == 0 {
-		return buf.Bytes()
-	}
-	docVals := make([]uint32, len(ps))
-	tfVals := make([]uint32, len(ps))
-	var posVals []uint32
-	var prevDoc uint32
-	for i, p := range ps {
-		if i == 0 {
-			docVals[i] = p.DocID
-		} else {
-			docVals[i] = p.DocID - prevDoc
-		}
-		prevDoc = p.DocID
-		tfVals[i] = uint32(len(p.Poss))
-		var prevPos uint32
-		for j, pos := range p.Poss {
-			if j == 0 {
-				posVals = append(posVals, pos)
-			} else {
-				posVals = append(posVals, pos-prevPos)
-			}
-			prevPos = pos
-		}
-	}
-	docBits, docPay := packUint32Stream(docVals)
-	tfBits, tfPay := packUint32Stream(tfVals)
-	posBits, posPay := packUint32Stream(posVals)
-	buf.WriteByte(docBits)
-	buf.WriteByte(tfBits)
-	buf.WriteByte(posBits)
-	buf.WriteByte(0)
-	writeU32(&buf, uint32(len(docPay)))
-	buf.Write(docPay)
-	writeU32(&buf, uint32(len(tfPay)))
-	buf.Write(tfPay)
-	writeU32(&buf, uint32(len(posPay)))
-	buf.Write(posPay)
-	return buf.Bytes()
-}
-
-func postingsPayloadBytes(ix *InvIndex, encode func([]posting) []byte) int64 {
-	var n int64
-	for _, ps := range ix.postings {
-		n += int64(len(encode(ps)))
-	}
-	return n
-}
-
-func TestCompressionFormatsSynthetic(t *testing.T) {
+func TestCompressionFileSizesSynthetic(t *testing.T) {
 	for _, n := range []int{400, 2000} {
 		ix := fillCorpus(n, 4242, defaultWords())
-		v := postingsPayloadBytes(ix, encodePostingsVarint)
-		bp := postingsPayloadBytes(ix, encodePostingsBitpackLegacy)
-		p4 := postingsPayloadBytes(ix, encodePostings)
-		t.Logf("synthetic N=%d: varint=%d B bitpack=%d B p4+opt=%d B", n, v, bp, p4)
-		if p4 >= v && n == 400 {
-			t.Logf("note: p4+opt may be larger than varint on some corpora")
-		}
+		logCompressionRow(t, "synthetic", n,
+			postPayload(ix, encodePostingsVarint),
+			postPayload(ix, encodePostingsBitpackAll),
+			postPayload(ix, encodePostingsP4Bitpack),
+			postPayload(ix, encodePostings),
+		)
 	}
 }
 
-func TestCompressionVarintVsBitpackWiki(t *testing.T) {
+func TestCompressionWikiScale(t *testing.T) {
+	if os.Getenv("WIKI_SCALE_BENCH") == "" {
+		t.Skip("set WIKI_SCALE_BENCH=1")
+	}
+	path := ResolveCorpusPath()
+	if path == "" {
+		t.Skip("no wiki xml")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Skip("wiki xml missing")
+	}
+	for _, max := range []int{20000, 50000, 100000} {
+		ix, st, err := BuildIndexFromWikiXML(path, CorpusOpts{MaxDocs: max})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v2 := postPayload(ix, encodePostingsBitpackAll)
+		v3 := postPayload(ix, encodePostings)
+		p4d, bpd, pw, bw, _ := AnalyzeDocCodecBreakdown(ix)
+		t.Logf("N=%d terms=%d: post V2=%d KB V3=%d KB V3/V2=%.4f docP4=%d KB docBP=%d KB p4wins=%d bpwins=%d",
+			st.PagesIndexed, len(ix.postings), v2/1024, v3/1024, float64(v3)/float64(v2),
+			p4d/1024, bpd/1024, pw, bw)
+	}
+}
+
+func TestCompressionFileSizesWiki(t *testing.T) {
 	if os.Getenv("WIKI_COMPRESS_BENCH") == "" {
-		t.Skip("set WIKI_COMPRESS_BENCH=1 to compare on ruwiki (slow)")
+		t.Skip("set WIKI_COMPRESS_BENCH=1")
 	}
 	path := ResolveCorpusPath()
 	if path == "" {
@@ -119,8 +67,13 @@ func TestCompressionVarintVsBitpackWiki(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := postingsPayloadBytes(ix, encodePostingsVarint)
-	p4 := postingsPayloadBytes(ix, encodePostings)
-	t.Logf("ruwiki N=%d: varint=%d B p4+opt=%d B ratio=%.2fx indexed=%d",
-		st.PagesIndexed, v, p4, float64(v)/float64(p4), st.PagesIndexed)
+	logCompressionRow(t, "ruwiki", st.PagesIndexed,
+		postPayload(ix, encodePostingsVarint),
+		postPayload(ix, encodePostingsBitpackAll),
+		postPayload(ix, encodePostingsP4Bitpack),
+		postPayload(ix, encodePostings),
+	)
+	p4d, bpd, pw, bw, tie := AnalyzeDocCodecBreakdown(ix)
+	t.Logf("doc Δ only: PForDelta=%d KB bitpack=%d KB (delta %+d KB); lists: p4 wins=%d bp wins=%d tie=%d",
+		p4d/1024, bpd/1024, (p4d-bpd)/1024, pw, bw, tie)
 }

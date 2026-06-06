@@ -1,133 +1,145 @@
 File: ir.test
-Build ID: c94e3be2b8af99789f5c9a5d80c83bb4cfa6c1a1
+Build ID: b0cdf6f2deadfb186249dc2f9ccd5b9f18340aab
 Type: cpu
-Time: 2026-05-24 19:46:37 MSK
-Duration: 2s, Total samples = 2.57s (128.18%)
-Showing nodes accounting for 2.25s, 87.55% of 2.57s total
-Dropped 99 nodes (cum <= 0.01s)
+Time: 2026-06-06 17:16:16 MSK
+Duration: 2.10s, Total samples = 2.68s (127.35%)
+Showing nodes accounting for 2.47s, 92.16% of 2.68s total
+Dropped 52 nodes (cum <= 0.01s)
       flat  flat%   sum%        cum   cum%
-     0.19s  7.39%  7.39%      0.53s 20.62%  siaod-hw5-irindex/internal/ir.Tokenize
-     0.15s  5.84% 13.23%      0.15s  5.84%  runtime.memclrNoHeapPointers
-     0.13s  5.06% 18.29%      0.16s  6.23%  runtime.findObject
-     0.12s  4.67% 22.96%      0.41s 15.95%  runtime.mapassign_faststr
-     0.12s  4.67% 27.63%      0.41s 15.95%  runtime.scanobject
-     0.12s  4.67% 32.30%      1.16s 45.14%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
-     0.09s  3.50% 35.80%      0.11s  4.28%  internal/runtime/maps.(*Iter).Next
-     0.09s  3.50% 39.30%      0.09s  3.50%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
-     0.07s  2.72% 42.02%      0.08s  3.11%  runtime.typePointers.next
-     0.07s  2.72% 44.75%      0.07s  2.72%  unicode.IsLetter (inline)
-     0.06s  2.33% 47.08%      0.06s  2.33%  internal/runtime/maps.(*groupReference).key (inline)
-     0.06s  2.33% 49.42%      0.06s  2.33%  runtime.memmove
-     0.05s  1.95% 51.36%      0.11s  4.28%  runtime.mapaccess1_faststr
-     0.05s  1.95% 53.31%      0.05s  1.95%  runtime.nextFreeFast (inline)
-     0.04s  1.56% 54.86%      0.04s  1.56%  aeshashbody
-     0.04s  1.56% 56.42%      0.04s  1.56%  internal/runtime/maps.(*Map).directoryAt (inline)
-     0.04s  1.56% 57.98%      0.04s  1.56%  runtime.futex
-     0.04s  1.56% 59.53%      0.26s 10.12%  runtime.mallocgcSmallScanNoHeader
-     0.04s  1.56% 61.09%      0.04s  1.56%  runtime.procyield
-     0.04s  1.56% 62.65%      0.04s  1.56%  runtime.typePointers.nextFast (inline)
-     0.04s  1.56% 64.20%      1.84s 71.60%  siaod-hw5-irindex/internal/ir.fillCorpus
-     0.03s  1.17% 65.37%      0.07s  2.72%  internal/reflectlite.Swapper
-     0.03s  1.17% 66.54%      0.03s  1.17%  internal/runtime/maps.(*groupReference).elem (inline)
-     0.03s  1.17% 67.70%      0.03s  1.17%  memeqbody
-     0.03s  1.17% 68.87%      0.03s  1.17%  runtime.madvise
-     0.03s  1.17% 70.04%      0.41s 15.95%  runtime.mallocgc
-     0.03s  1.17% 71.21%      0.03s  1.17%  runtime.strhash
-     0.03s  1.17% 72.37%      0.03s  1.17%  runtime.tgkill
-     0.03s  1.17% 73.54%      0.03s  1.17%  sort.insertionSort_func
-     0.03s  1.17% 74.71%      0.03s  1.17%  strings.ToLower
-     0.02s  0.78% 75.49%      0.02s  0.78%  internal/reflectlite.unpackEface (inline)
-     0.02s  0.78% 76.26%      0.02s  0.78%  runtime.(*gcBits).bitp (inline)
-     0.02s  0.78% 77.04%      0.02s  0.78%  runtime.(*lfstack).pop (inline)
-     0.02s  0.78% 77.82%      0.02s  0.78%  runtime.arenaIndex (inline)
-     0.02s  0.78% 78.60%      0.06s  2.33%  runtime.greyobject
-     0.02s  0.78% 79.38%      0.03s  1.17%  runtime.mallocgcSmallNoscan
-     0.02s  0.78% 80.16%      0.02s  0.78%  runtime.memequal
-     0.02s  0.78% 80.93%      0.03s  1.17%  runtime.scanblock
-     0.02s  0.78% 81.71%      0.03s  1.17%  runtime.spanOf (inline)
-     0.02s  0.78% 82.49%      0.09s  3.50%  siaod-hw5-irindex/internal/ir.isTokRune
-     0.02s  0.78% 83.27%      0.16s  6.23%  sort.Slice
-     0.02s  0.78% 84.05%      0.04s  1.56%  strings.(*Builder).WriteByte (inline)
-     0.01s  0.39% 84.44%      0.03s  1.17%  internal/reflectlite.ValueOf (inline)
-     0.01s  0.39% 84.82%      0.04s  1.56%  runtime.(*mheap).initSpan
-     0.01s  0.39% 85.21%      0.02s  0.78%  runtime.(*mspan).writeHeapBitsSmall
-     0.01s  0.39% 85.60%      0.02s  0.78%  runtime.(*spanSet).pop
-     0.01s  0.39% 85.99%      0.54s 21.01%  runtime.gcDrain
-     0.01s  0.39% 86.38%      0.35s 13.62%  runtime.growslice
-     0.01s  0.39% 86.77%      0.10s  3.89%  runtime.mapIterNext
-     0.01s  0.39% 87.16%      0.04s  1.56%  runtime.mapIterStart
-     0.01s  0.39% 87.55%      0.05s  1.95%  strings.(*Builder).WriteString (inline)
-         0     0% 87.55%      0.02s  0.78%  gcWriteBarrier
-         0     0% 87.55%      0.02s  0.78%  runtime.(*gcControllerState).enlistWorker
-         0     0% 87.55%      0.04s  1.56%  runtime.(*gcWork).balance
-         0     0% 87.55%      0.02s  0.78%  runtime.(*gcWork).tryGetObj
-         0     0% 87.55%      0.10s  3.89%  runtime.(*mcache).nextFree
-         0     0% 87.55%      0.10s  3.89%  runtime.(*mcache).refill
-         0     0% 87.55%      0.09s  3.50%  runtime.(*mcentral).cacheSpan
-         0     0% 87.55%      0.09s  3.50%  runtime.(*mcentral).grow
-         0     0% 87.55%      0.04s  1.56%  runtime.(*mheap).alloc
-         0     0% 87.55%      0.04s  1.56%  runtime.(*mheap).alloc.func1
-         0     0% 87.55%      0.05s  1.95%  runtime.(*mheap).allocSpan
-         0     0% 87.55%      0.02s  0.78%  runtime.(*mheap).freeSpan (inline)
-         0     0% 87.55%      0.02s  0.78%  runtime.(*mheap).nextSpanForSweep
-         0     0% 87.55%      0.05s  1.95%  runtime.(*mspan).initHeapBits
-         0     0% 87.55%      0.02s  0.78%  runtime.(*mspan).markBitsForIndex (inline)
-         0     0% 87.55%      0.03s  1.17%  runtime.(*pageAlloc).scavenge
-         0     0% 87.55%      0.03s  1.17%  runtime.(*pageAlloc).scavenge.func1
-         0     0% 87.55%      0.03s  1.17%  runtime.(*pageAlloc).scavengeOne
-         0     0% 87.55%      0.03s  1.17%  runtime.(*scavengerState).init.func2
-         0     0% 87.55%      0.03s  1.17%  runtime.(*scavengerState).run
-         0     0% 87.55%      0.02s  0.78%  runtime.(*spanSet).push
-         0     0% 87.55%      0.05s  1.95%  runtime.(*sweepLocked).sweep
-         0     0% 87.55%      0.03s  1.17%  runtime.bgscavenge
-         0     0% 87.55%      0.06s  2.33%  runtime.bgsweep
-         0     0% 87.55%      0.02s  0.78%  runtime.bulkBarrierPreWriteSrcOnly
-         0     0% 87.55%      0.10s  3.89%  runtime.convTslice
-         0     0% 87.55%      0.02s  0.78%  runtime.deductAssistCredit
-         0     0% 87.55%      0.07s  2.72%  runtime.findRunnable
-         0     0% 87.55%      0.02s  0.78%  runtime.forEachP (inline)
-         0     0% 87.55%      0.02s  0.78%  runtime.forEachPInternal
-         0     0% 87.55%      0.04s  1.56%  runtime.futexsleep
-         0     0% 87.55%      0.02s  0.78%  runtime.gcAssistAlloc
-         0     0% 87.55%      0.02s  0.78%  runtime.gcAssistAlloc.func2
-         0     0% 87.55%      0.02s  0.78%  runtime.gcAssistAlloc1
-         0     0% 87.55%      0.56s 21.79%  runtime.gcBgMarkWorker
-         0     0% 87.55%      0.54s 21.01%  runtime.gcBgMarkWorker.func2
-         0     0% 87.55%      0.45s 17.51%  runtime.gcDrainMarkWorkerDedicated (inline)
-         0     0% 87.55%      0.09s  3.50%  runtime.gcDrainMarkWorkerIdle (inline)
-         0     0% 87.55%      0.02s  0.78%  runtime.gcDrainN
-         0     0% 87.55%      0.02s  0.78%  runtime.gcMarkDone
-         0     0% 87.55%      0.02s  0.78%  runtime.handoff
-         0     0% 87.55%      0.02s  0.78%  runtime.heapSetTypeNoHeader (inline)
-         0     0% 87.55%      0.05s  1.95%  runtime.lock (partial-inline)
-         0     0% 87.55%      0.05s  1.95%  runtime.lock2
-         0     0% 87.55%      0.05s  1.95%  runtime.lockWithRank (inline)
-         0     0% 87.55%      0.03s  1.17%  runtime.mPark (inline)
-         0     0% 87.55%      0.02s  0.78%  runtime.mallocgcLarge
-         0     0% 87.55%      0.04s  1.56%  runtime.mallocgcSmallScanHeader
-         0     0% 87.55%      0.06s  2.33%  runtime.markroot
-         0     0% 87.55%      0.02s  0.78%  runtime.markroot.func1
-         0     0% 87.55%      0.03s  1.17%  runtime.markrootBlock
-         0     0% 87.55%      0.06s  2.33%  runtime.mcall
-         0     0% 87.55%      0.02s  0.78%  runtime.newMarkBits
-         0     0% 87.55%      0.02s  0.78%  runtime.newobject
-         0     0% 87.55%      0.03s  1.17%  runtime.notesleep
-         0     0% 87.55%      0.06s  2.33%  runtime.park_m
-         0     0% 87.55%      0.03s  1.17%  runtime.preemptM (inline)
-         0     0% 87.55%      0.02s  0.78%  runtime.preemptone
-         0     0% 87.55%      0.07s  2.72%  runtime.schedule
-         0     0% 87.55%      0.03s  1.17%  runtime.signalM
-         0     0% 87.55%      0.05s  1.95%  runtime.stopm
-         0     0% 87.55%      0.06s  2.33%  runtime.sweepone
-         0     0% 87.55%      0.03s  1.17%  runtime.sysUnused (inline)
-         0     0% 87.55%      0.03s  1.17%  runtime.sysUnusedOS
-         0     0% 87.55%      0.72s 28.02%  runtime.systemstack
-         0     0% 87.55%      0.02s  0.78%  runtime.trygetfull
-         0     0% 87.55%      0.04s  1.56%  runtime.wbBufFlush
-         0     0% 87.55%      0.04s  1.56%  runtime.wbBufFlush.func1
-         0     0% 87.55%      0.04s  1.56%  runtime.wbBufFlush1
-         0     0% 87.55%      1.84s 71.60%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
-         0     0% 87.55%      0.26s 10.12%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
-         0     0% 87.55%      0.03s  1.17%  sort.pdqsort_func
-         0     0% 87.55%      1.84s 71.60%  testing.(*B).launch
-         0     0% 87.55%      1.84s 71.60%  testing.(*B).runN
+     0.13s  4.85%  4.85%      0.27s 10.07%  runtime.mapassign_faststr
+     0.13s  4.85%  9.70%      0.21s  7.84%  siaod-hw5-irindex/internal/ir.isTokRune
+     0.12s  4.48% 14.18%      0.19s  7.09%  runtime.findObject
+     0.12s  4.48% 18.66%      0.12s  4.48%  runtime.memclrNoHeapPointers
+     0.10s  3.73% 22.39%      0.10s  3.73%  aeshashbody
+     0.10s  3.73% 26.12%      0.48s 17.91%  runtime.scanobject
+     0.10s  3.73% 29.85%      0.10s  3.73%  unicode/utf8.DecodeRuneInString
+     0.09s  3.36% 33.21%      0.09s  3.36%  runtime.(*mspan).writeHeapBitsSmall
+     0.09s  3.36% 36.57%      0.09s  3.36%  runtime.nextFreeFast (inline)
+     0.09s  3.36% 39.93%      0.10s  3.73%  runtime.typePointers.next
+     0.09s  3.36% 43.28%      1.16s 43.28%  siaod-hw5-irindex/internal/ir.(*InvIndex).add
+     0.07s  2.61% 45.90%      0.29s 10.82%  runtime.mapaccess1_faststr
+     0.06s  2.24% 48.13%      0.06s  2.24%  internal/runtime/maps.(*groupReference).key (inline)
+     0.06s  2.24% 50.37%      0.34s 12.69%  runtime.mallocgcSmallScanNoHeader
+     0.05s  1.87% 52.24%      0.05s  1.87%  internal/runtime/maps.ctrlGroup.matchH2 (inline)
+     0.05s  1.87% 54.10%      0.05s  1.87%  runtime.memequal
+     0.05s  1.87% 55.97%      0.05s  1.87%  runtime.memmove
+     0.05s  1.87% 57.84%      0.05s  1.87%  runtime.spanOf (inline)
+     0.05s  1.87% 59.70%      0.05s  1.87%  strings.ToLower
+     0.05s  1.87% 61.57%      0.05s  1.87%  unicode.IsLetter (inline)
+     0.04s  1.49% 63.06%      0.04s  1.49%  internal/reflectlite.Value.Len
+     0.04s  1.49% 64.55%      0.04s  1.49%  runtime.(*gcBits).bitp (inline)
+     0.04s  1.49% 66.04%      0.04s  1.49%  runtime.madvise
+     0.04s  1.49% 67.54%      0.60s 22.39%  siaod-hw5-irindex/internal/ir.Tokenize
+     0.03s  1.12% 68.66%      0.10s  3.73%  internal/reflectlite.Swapper
+     0.03s  1.12% 69.78%      0.05s  1.87%  math/rand/v2.(*PCG).Uint64 (inline)
+     0.03s  1.12% 70.90%      0.03s  1.12%  memeqbody
+     0.03s  1.12% 72.01%      0.03s  1.12%  runtime.(*spanSet).reset
+     0.03s  1.12% 73.13%      0.03s  1.12%  runtime.futex
+     0.03s  1.12% 74.25%      0.10s  3.73%  runtime.greyobject
+     0.03s  1.12% 75.37%      0.03s  1.12%  runtime.procyield
+     0.03s  1.12% 76.49%      0.03s  1.12%  runtime.roundupsize (inline)
+     0.03s  1.12% 77.61%      0.03s  1.12%  runtime.strhash
+     0.03s  1.12% 78.73%      0.03s  1.12%  sort.insertionSort_func
+     0.03s  1.12% 79.85%      0.08s  2.99%  strings.(*Builder).WriteString (inline)
+     0.03s  1.12% 80.97%      0.03s  1.12%  unicode.IsDigit (inline)
+     0.02s  0.75% 81.72%      0.02s  0.75%  math/rand/v2.(*PCG).next (inline)
+     0.02s  0.75% 82.46%      0.02s  0.75%  runtime.(*mspan).base (inline)
+     0.02s  0.75% 83.21%      0.02s  0.75%  runtime.(*mspan).divideByElemSize (inline)
+     0.02s  0.75% 83.96%      0.02s  0.75%  runtime.getpid
+     0.02s  0.75% 84.70%      0.05s  1.87%  runtime.lock2
+     0.02s  0.75% 85.45%      0.02s  0.75%  runtime.spanOfUnchecked (inline)
+     0.02s  0.75% 86.19%      0.02s  0.75%  runtime.typePointers.nextFast (inline)
+     0.02s  0.75% 86.94%      0.06s  2.24%  strings.(*Builder).WriteByte (inline)
+     0.01s  0.37% 87.31%      0.02s  0.75%  gcWriteBarrier
+     0.01s  0.37% 87.69%      0.02s  0.75%  runtime.(*mheap).alloc
+     0.01s  0.37% 88.06%      0.02s  0.75%  runtime.(*mheap).freeSpanLocked
+     0.01s  0.37% 88.43%      0.02s  0.75%  runtime.(*mspan).typePointersOfUnchecked
+     0.01s  0.37% 88.81%      0.12s  4.48%  runtime.convTslice
+     0.01s  0.37% 89.18%      0.03s  1.12%  runtime.futexsleep
+     0.01s  0.37% 89.55%      0.55s 20.52%  runtime.gcDrain
+     0.01s  0.37% 89.93%      0.10s  3.73%  runtime.heapSetTypeNoHeader (inline)
+     0.01s  0.37% 90.30%      0.06s  2.24%  runtime.mallocgcSmallNoscan
+     0.01s  0.37% 90.67%      0.04s  1.49%  runtime.mallocgcSmallScanHeader
+     0.01s  0.37% 91.04%      0.02s  0.75%  runtime.scanblock
+     0.01s  0.37% 91.42%      0.30s 11.19%  siaod-hw5-irindex/internal/ir.sortUint32 (inline)
+     0.01s  0.37% 91.79%      0.17s  6.34%  sort.Slice
+     0.01s  0.37% 92.16%      0.04s  1.49%  sort.pdqsort_func
+         0     0% 92.16%      0.02s  0.75%  runtime.(*gcControllerState).enlistWorker
+         0     0% 92.16%      0.02s  0.75%  runtime.(*gcWork).balance
+         0     0% 92.16%      0.06s  2.24%  runtime.(*mcache).nextFree
+         0     0% 92.16%      0.03s  1.12%  runtime.(*mcache).prepareForSweep
+         0     0% 92.16%      0.06s  2.24%  runtime.(*mcache).refill
+         0     0% 92.16%      0.03s  1.12%  runtime.(*mcache).releaseAll
+         0     0% 92.16%      0.06s  2.24%  runtime.(*mcentral).cacheSpan
+         0     0% 92.16%      0.06s  2.24%  runtime.(*mcentral).grow
+         0     0% 92.16%      0.03s  1.12%  runtime.(*mcentral).uncacheSpan
+         0     0% 92.16%      0.03s  1.12%  runtime.(*mheap).freeSpan (inline)
+         0     0% 92.16%      0.04s  1.49%  runtime.(*mspan).initHeapBits
+         0     0% 92.16%      0.04s  1.49%  runtime.(*mspan).markBitsForIndex (inline)
+         0     0% 92.16%      0.02s  0.75%  runtime.(*mspan).objIndex (inline)
+         0     0% 92.16%      0.04s  1.49%  runtime.(*pageAlloc).scavenge
+         0     0% 92.16%      0.04s  1.49%  runtime.(*pageAlloc).scavenge.func1
+         0     0% 92.16%      0.04s  1.49%  runtime.(*pageAlloc).scavengeOne
+         0     0% 92.16%      0.04s  1.49%  runtime.(*scavengerState).init.func2
+         0     0% 92.16%      0.04s  1.49%  runtime.(*scavengerState).run
+         0     0% 92.16%      0.04s  1.49%  runtime.(*sweepLocked).sweep
+         0     0% 92.16%      0.03s  1.12%  runtime.(*sweepLocked).sweep.(*mheap).freeSpan.func2
+         0     0% 92.16%      0.02s  0.75%  runtime.(*wbBuf).get2 (inline)
+         0     0% 92.16%      0.02s  0.75%  runtime.acquirep
+         0     0% 92.16%      0.04s  1.49%  runtime.bgscavenge
+         0     0% 92.16%      0.03s  1.12%  runtime.bulkBarrierPreWrite
+         0     0% 92.16%      0.02s  0.75%  runtime.deductAssistCredit
+         0     0% 92.16%      0.06s  2.24%  runtime.findRunnable
+         0     0% 92.16%      0.03s  1.12%  runtime.finishsweep_m
+         0     0% 92.16%      0.02s  0.75%  runtime.forEachP (inline)
+         0     0% 92.16%      0.02s  0.75%  runtime.forEachPInternal
+         0     0% 92.16%      0.02s  0.75%  runtime.gcAssistAlloc
+         0     0% 92.16%      0.02s  0.75%  runtime.gcAssistAlloc.func2
+         0     0% 92.16%      0.02s  0.75%  runtime.gcAssistAlloc1
+         0     0% 92.16%      0.59s 22.01%  runtime.gcBgMarkWorker
+         0     0% 92.16%      0.55s 20.52%  runtime.gcBgMarkWorker.func2
+         0     0% 92.16%      0.44s 16.42%  runtime.gcDrainMarkWorkerDedicated (inline)
+         0     0% 92.16%      0.11s  4.10%  runtime.gcDrainMarkWorkerIdle (inline)
+         0     0% 92.16%      0.04s  1.49%  runtime.gcMarkDone
+         0     0% 92.16%      0.02s  0.75%  runtime.gcMarkDone.forEachP.func5
+         0     0% 92.16%      0.02s  0.75%  runtime.gcMarkTermination
+         0     0% 92.16%      0.04s  1.49%  runtime.gcStart
+         0     0% 92.16%      0.03s  1.12%  runtime.gcStart.func3
+         0     0% 92.16%      0.02s  0.75%  runtime.gcstopm
+         0     0% 92.16%      0.04s  1.49%  runtime.gopreempt_m (inline)
+         0     0% 92.16%      0.04s  1.49%  runtime.goschedImpl
+         0     0% 92.16%      0.44s 16.42%  runtime.growslice
+         0     0% 92.16%      0.05s  1.87%  runtime.lock (partial-inline)
+         0     0% 92.16%      0.05s  1.87%  runtime.lockWithRank (inline)
+         0     0% 92.16%      0.02s  0.75%  runtime.mPark (inline)
+         0     0% 92.16%      0.49s 18.28%  runtime.mallocgc
+         0     0% 92.16%      0.03s  1.12%  runtime.mallocgcLarge
+         0     0% 92.16%      0.04s  1.49%  runtime.markroot
+         0     0% 92.16%      0.02s  0.75%  runtime.markroot.func1
+         0     0% 92.16%      0.02s  0.75%  runtime.markrootBlock
+         0     0% 92.16%      0.05s  1.87%  runtime.mcall
+         0     0% 92.16%      0.02s  0.75%  runtime.memclrNoHeapPointersChunked
+         0     0% 92.16%      0.04s  1.49%  runtime.morestack
+         0     0% 92.16%      0.02s  0.75%  runtime.newobject
+         0     0% 92.16%      0.05s  1.87%  runtime.newstack
+         0     0% 92.16%      0.02s  0.75%  runtime.notesleep
+         0     0% 92.16%      0.05s  1.87%  runtime.park_m
+         0     0% 92.16%      0.03s  1.12%  runtime.preemptM (inline)
+         0     0% 92.16%      0.03s  1.12%  runtime.preemptone
+         0     0% 92.16%      0.02s  0.75%  runtime.scanstack
+         0     0% 92.16%      0.07s  2.61%  runtime.schedule
+         0     0% 92.16%      0.03s  1.12%  runtime.signalM
+         0     0% 92.16%      0.05s  1.87%  runtime.stopm
+         0     0% 92.16%      0.04s  1.49%  runtime.sysUnused (inline)
+         0     0% 92.16%      0.04s  1.49%  runtime.sysUnusedOS
+         0     0% 92.16%      0.73s 27.24%  runtime.systemstack
+         0     0% 92.16%      0.02s  0.75%  runtime.typedslicecopy
+         0     0% 92.16%      0.04s  1.49%  runtime.wbBufFlush
+         0     0% 92.16%      0.04s  1.49%  runtime.wbBufFlush.func1
+         0     0% 92.16%      0.04s  1.49%  runtime.wbBufFlush1
+         0     0% 92.16%      1.16s 43.28%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add (inline)
+         0     0% 92.16%      1.95s 72.76%  siaod-hw5-irindex/internal/ir.BenchmarkBuildIndex.func1
+         0     0% 92.16%      1.95s 72.76%  siaod-hw5-irindex/internal/ir.fillCorpus
+         0     0% 92.16%      1.92s 71.64%  testing.(*B).launch
+         0     0% 92.16%      0.03s  1.12%  testing.(*B).run1.func1
+         0     0% 92.16%      1.95s 72.76%  testing.(*B).runN

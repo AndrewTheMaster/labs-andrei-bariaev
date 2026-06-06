@@ -29,7 +29,29 @@ func TestOptimalStreamRoundtrip(t *testing.T) {
 		{1, 1, 1, 1, 1},
 	} {
 		c, p := encodeOptimalStream(vals)
-		got, err := decodeOptimalStream(c, p, len(vals))
+		got, err := decodeStream(c, p, len(vals))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range vals {
+			if got[i] != vals[i] {
+				t.Fatalf("vals=%v at %d got %d", vals, i, got[i])
+			}
+		}
+	}
+}
+
+func TestBitpackStreamRoundtrip(t *testing.T) {
+	for _, vals := range [][]uint32{
+		{0, 1, 2, 3},
+		{0, 100, 200, 300},
+		{1, 1, 1, 1, 1},
+	} {
+		c, p := encodeBitpackStream(vals)
+		if c != streamBitpack {
+			t.Fatalf("codec=%d want bitpack", c)
+		}
+		got, err := decodeBitpackStream(p, len(vals))
 		if err != nil {
 			t.Fatal(err)
 		}

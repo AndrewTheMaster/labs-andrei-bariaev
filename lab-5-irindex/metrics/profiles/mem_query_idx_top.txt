@@ -1,32 +1,33 @@
 File: ir.test
-Build ID: c94e3be2b8af99789f5c9a5d80c83bb4cfa6c1a1
+Build ID: b0cdf6f2deadfb186249dc2f9ccd5b9f18340aab
 Type: alloc_space
-Time: 2026-05-24 19:46:37 MSK
-Showing nodes accounting for 643.27MB, 98.81% of 651MB total
-Dropped 24 nodes (cum <= 3.25MB)
+Time: 2026-06-06 17:16:16 MSK
+Showing nodes accounting for 627.76MB, 98.48% of 637.42MB total
+Dropped 17 nodes (cum <= 3.19MB)
       flat  flat%   sum%        cum   cum%
-  484.20MB 74.38% 74.38%   484.20MB 74.38%  siaod-hw5-irindex/internal/ir.msmInDoc
-   34.10MB  5.24% 79.62%    34.10MB  5.24%  siaod-hw5-irindex/internal/ir.intersectSortedSkipInto
-   25.13MB  3.86% 83.48%    25.13MB  3.86%  siaod-hw5-irindex/internal/ir.unionSortedInto
-   24.12MB  3.70% 87.18%    24.12MB  3.70%  siaod-hw5-irindex/internal/ir.subtractSortedInto
-   19.63MB  3.01% 90.20%   625.36MB 96.06%  siaod-hw5-irindex/internal/ir.(*EvalCtx).eval
-   16.09MB  2.47% 92.67%    16.09MB  2.47%  siaod-hw5-irindex/internal/ir.postingDocIDs (inline)
-   10.56MB  1.62% 94.29%   593.20MB 91.12%  siaod-hw5-irindex/internal/ir.(*EvalCtx).evalAnd
-    8.40MB  1.29% 95.58%    10.40MB  1.60%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add
-       7MB  1.08% 96.65%        7MB  1.08%  siaod-hw5-irindex/internal/ir.Tokenize
-    5.51MB  0.85% 97.50%     5.51MB  0.85%  runtime.allocm
-    5.03MB  0.77% 98.27%     5.03MB  0.77%  siaod-hw5-irindex/internal/ir.intersectSortedSkip (inline)
-    3.51MB  0.54% 98.81%   508.83MB 78.16%  siaod-hw5-irindex/internal/ir.evalMSM
-         0     0% 98.81%     4.51MB  0.69%  runtime.mcall
-         0     0% 98.81%     5.51MB  0.85%  runtime.newm
-         0     0% 98.81%     4.01MB  0.62%  runtime.park_m
-         0     0% 98.81%     5.51MB  0.85%  runtime.resetspinning
-         0     0% 98.81%     5.51MB  0.85%  runtime.schedule
-         0     0% 98.81%     5.51MB  0.85%  runtime.startm
-         0     0% 98.81%     5.51MB  0.85%  runtime.wakep
-         0     0% 98.81%   625.36MB 96.06%  siaod-hw5-irindex/internal/ir.(*EvalCtx).Eval (inline)
-         0     0% 98.81%   643.76MB 98.89%  siaod-hw5-irindex/internal/ir.BenchmarkQueryEvalMixed.func1
-         0     0% 98.81%    18.40MB  2.83%  siaod-hw5-irindex/internal/ir.fillCorpus
-         0     0% 98.81%   634.17MB 97.42%  testing.(*B).launch
-         0     0% 98.81%     9.59MB  1.47%  testing.(*B).run1.func1
-         0     0% 98.81%   643.76MB 98.89%  testing.(*B).runN
+  470.19MB 73.77% 73.77%   470.19MB 73.77%  siaod-hw5-irindex/internal/ir.msmInDoc
+   29.59MB  4.64% 78.41%    29.59MB  4.64%  siaod-hw5-irindex/internal/ir.intersectSortedSkipInto
+   27.14MB  4.26% 82.67%    27.14MB  4.26%  siaod-hw5-irindex/internal/ir.subtractSortedInto
+   24.11MB  3.78% 86.45%    24.11MB  3.78%  siaod-hw5-irindex/internal/ir.unionSortedInto
+   18.60MB  2.92% 89.37%    18.60MB  2.92%  siaod-hw5-irindex/internal/ir.postingDocIDs (inline)
+   12.58MB  1.97% 91.34%   609.34MB 95.59%  siaod-hw5-irindex/internal/ir.(*EvalCtx).eval
+   11.05MB  1.73% 93.07%   581.21MB 91.18%  siaod-hw5-irindex/internal/ir.(*EvalCtx).evalAnd
+    8.41MB  1.32% 94.39%    11.41MB  1.79%  siaod-hw5-irindex/internal/ir.(*InvIndex).add
+    7.53MB  1.18% 95.58%   501.86MB 78.73%  siaod-hw5-irindex/internal/ir.evalMSM
+    7.50MB  1.18% 96.75%     7.50MB  1.18%  siaod-hw5-irindex/internal/ir.Tokenize
+    5.53MB  0.87% 97.62%     5.53MB  0.87%  siaod-hw5-irindex/internal/ir.intersectSortedSkip (inline)
+    5.51MB  0.86% 98.48%     5.51MB  0.86%  runtime.allocm
+         0     0% 98.48%     4.51MB  0.71%  runtime.mcall
+         0     0% 98.48%     5.51MB  0.86%  runtime.newm
+         0     0% 98.48%     4.51MB  0.71%  runtime.park_m
+         0     0% 98.48%     5.51MB  0.86%  runtime.resetspinning
+         0     0% 98.48%     5.51MB  0.86%  runtime.schedule
+         0     0% 98.48%     5.51MB  0.86%  runtime.startm
+         0     0% 98.48%     5.51MB  0.86%  runtime.wakep
+         0     0% 98.48%   609.34MB 95.59%  siaod-hw5-irindex/internal/ir.(*EvalCtx).Eval (inline)
+         0     0% 98.48%    11.41MB  1.79%  siaod-hw5-irindex/internal/ir.(*InvIndex).Add (inline)
+         0     0% 98.48%   630.25MB 98.88%  siaod-hw5-irindex/internal/ir.BenchmarkQueryEvalMixed.func1
+         0     0% 98.48%    20.91MB  3.28%  siaod-hw5-irindex/internal/ir.fillCorpus
+         0     0% 98.48%   624.18MB 97.92%  testing.(*B).launch
+         0     0% 98.48%     6.07MB  0.95%  testing.(*B).run1.func1
+         0     0% 98.48%   630.75MB 98.95%  testing.(*B).runN

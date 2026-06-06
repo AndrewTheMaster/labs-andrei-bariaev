@@ -1,7 +1,7 @@
 # Лабораторная работа №5 — Обратный индекс, булевы запросы, mmap, сжатие, TF/IDF(BM25)
 
 **Дисциплина:** Структуры и алгоритмы в базах данных и распределённых системах  
-**Тема:** … сжатие (**PForDelta + optimal varint/bitpack**, `IRIXV3PD`); … **`irquery`** с заголовками wiki и проверяемым выводом.
+**Тема:** … сжатие (**PForDelta + optimal varint|bitpack**, `IRIXV3PD`); … **`irquery`** …
 
 ---
 
@@ -24,7 +24,7 @@
 - **1) Координатный индекс + булевы операции + ADJ/NEAR**: [`index.go`](internal/ir/index.go), [`eval.go`](internal/ir/eval.go), [`ast.go`](internal/ir/ast.go). `AND` — `intersectSortedSkip` ([`eval.go`](internal/ir/eval.go)).
 - **2) Сложные запросы**: [`parse.go`](internal/ir/parse.go) (`NOT > AND > OR`, `NEAR`/`ADJ`/`FIRST`/`LAST`).
 - **3) Дисковый индекс + mmap**: [`storage.go`](internal/ir/storage.go) `SaveCompressed`, `OpenMMapIndex`.
-- **4) Сжатие**: **IRIXV3PD** — doc Δ **PForDelta** ([`p4delta.go`](internal/ir/p4delta.go)); tf/pos Δ — **varint или bitpack** ([`encode_stream.go`](internal/ir/encode_stream.go)); табл. 4.1в.
+- **4) Сжатие**: **IRIXV3PD** — doc Δ **PForDelta**; tf/pos Δ — **varint|bitpack (optimal, V4)**; табл. 4.1в.
 - **5) BM25**: [`bm25.go`](internal/ir/bm25.go), `SearchBM25MMap`, `irquery -rank`.
 - **6) Бенчмарки**: `BenchmarkOp` на **ruwiki** (`make bench-wiki`), графики §4.6.
 - **7) Стенд запросов**: [`cmd/irquery`](cmd/irquery/main.go) — docID + **заголовок wiki** + terms×tf.
@@ -39,7 +39,7 @@
 | Интервалы `BENCH_CORPUS` | `400,2000` синтетика | табл. 3.1, 4.4–4.5 |
 | Операторы по отдельности | `BenchmarkOp` | табл. 4.5 |
 | Размер до/после сжатия | `MeasureIndexSizes`, `irindex` | **табл. 4.1а–4.1б, 4.1в** |
-| Varint → PForDelta+opt | `IRIXV1` → `IRIXV3PD` | табл. 4.1в, `TestPostingsP4Roundtrip` |
+| Varint → PForDelta+opt | `IRIXV1` → `IRIXV3PD` (V4) | табл. 4.1в, `TestPostingsP4Roundtrip` |
 | Проверяемый вывод irquery | `display.go`, titles в `.irx` | `история AND NOT(россии AND китая)` |
 | Построение на корпусе | `irindex -maxdocs 20000` | **табл. 4.1б** |
 
@@ -53,7 +53,7 @@
 |:-----|:-----------|
 | [`internal/ir/index.go`](internal/ir/index.go) | `InvIndex`, `Add` / `AddLean`, `posArena`, `scratchKeys` |
 | [`internal/ir/bitpack.go`](internal/ir/bitpack.go) | упаковка потоков uint32 |
-| [`internal/ir/storage.go`](internal/ir/storage.go) | `SaveCompressed`, `OpenMMapIndex`, формат `IRIXV2BP` |
+| [`internal/ir/storage.go`](internal/ir/storage.go) | `SaveCompressed`, `OpenMMapIndex`, формат `IRIXV3PD` |
 | [`internal/ir/corpus.go`](internal/ir/corpus.go) | `BuildIndexFromWikiXML`, UTF-8 `Tokenize` |
 | [`internal/ir/tokenize.go`](internal/ir/tokenize.go) | токены (латиница + кириллица) |
 | [`internal/ir/eval.go`](internal/ir/eval.go), [`eval_ctx.go`](internal/ir/eval_ctx.go) | оценка, `EvalIndex` / mmap |
@@ -90,9 +90,11 @@ make profile
 go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 20000 -out data/index.irx
 
 # бенчмарки на ruwiki (запросы с кириллицей):
-make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
-  BENCH_CORPUS=5000,10000,20000 BENCH_TIME=300ms \
-  BENCH_FILTER='^Benchmark(QueryEvalMixed|Op)'
+make bench-wiki parse-wiki plot WIKI_XML=../ruwiki-latest-pages-articles.xml \
+  BENCH_CORPUS=5000,10000,20000 BENCH_TIME=300ms
+
+# сравнение кодеков (размер полного `.irx`, КБ):
+make collect-compression WIKI_XML=../ruwiki-latest-pages-articles.xml
 ```
 
 ### 3.1 Корпуса
@@ -115,32 +117,48 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 ## 4. Результаты и графики
 
-### 4.1а Синтетика — размер индекса (RAM vs `.irx`)
+### 4.1а Синтетика — RAM vs `.irx` (текущий V3)
 
-[`TestIndexSizesOnSynthetic`](internal/ir/ir_test.go), `fillCorpus`. **1 КБ = 1024 байт.**
+[`TestIndexSizesOnSynthetic`](internal/ir/ir_test.go), `fillCorpus`, **`SaveCompressed` (V3)**. **1 КБ = 1024 B.**
 
-| N | термов | RAM, КБ | файл `.irx`, КБ | сжатие |
-|--:|-------:|--------:|----------------:|-------:|
-| 400 | 16 | **9 950** | **17** | **580×** |
-| 2000 | 16 | **239 554** | **85** | **2833×** |
+| N | термов | RAM, КБ | `.irx` V3, КБ | RAM/файл |
+|--:|-------:|--------:|--------------:|---------:|
+| 400 | 16 | **425** | **10** | **42×** |
+| 2000 | 16 | **2 132** | **50** | **43×** |
 
-На синтетике в RAM ещё лежат тексты в `Docs` (`Add`); коэффициент завышен за счёт маленького файла.
+На синтетике в RAM лежат тексты документов (`Add`); коэффициент завышен относительно «lean»-сборки.
 
-### 4.1в Сжатие: varint (V1) → bitpack (V2) → **PForDelta+opt (V3)**
+### 4.1в Сравнение кодеков — **сумма posting-блоков, КБ**
 
-| Корпус | Varint V1 | Bitpack V2 | **PForDelta+opt V3** | `.irx` V3 |
-|:-------|----------:|-----------:|---------------------:|----------:|
-| ruwiki 20k payload | ~117.7 MB | ~157.5 MB | **~114 MB (оценка)** | **187 088 KB** |
-| ruwiki 20k (было V2BP) | — | — | — | 194 162 KB |
+Сравнивается только сжатие **posting lists** (сумма `encode(postings[term])` по всем термам), **без** словаря, docLen и заголовков wiki — чтобы кодеки сравнивались на одном и том же материале.  
+Источник: **`make collect-compression`** → [`metrics/raw/compression_sizes.tsv`](metrics/raw/compression_sizes.tsv).
 
-**V3:** doc Δ — PForDelta (блоки 128, до 32 exceptions); tf/pos — автоматически varint или bitpack.
+**Синтетика** (`fillCorpus`):
+
+| N | V1 varint | V2 bitpack | V3 P4+bitpack | **V4 P4+opt** |
+|--:|----------:|-----------:|--------------:|--------------:|
+| 400 | 15 | 7 | 7 | **7** |
+| 2000 | 76 | 38 | 37 | **37** |
+
+**Ruwiki** (`BuildIndexFromWikiXML`, **N = 20 000**):
+
+| V1 varint | V2 bitpack | V3 P4+bitpack | **V4 P4+opt (боевой)** |
+|----------:|-----------:|--------------:|-----------------------:|
+| **120 522** | 161 326 | 173 422 | **153 645** |
+
+- **V3** — PForDelta + bitpack tf/pos (для сравнения «чистого» P4+BP).  
+- **V4** — PForDelta + **varint|bitpack** tf/pos (что компактнее); **формат `SaveCompressed` / `.irx`**.  
+- **V1** — varint по всем потокам (baseline).
+
+На ruwiki **V4 < V2** (−4.8% posting payload): optimal tf/pos экономит на малых Δ; PForDelta на doc Δ остаётся по ТЗ. Полный `.irx` — **табл. 4.1б**.
 
 ### 4.1б Ruwiki — построение (**N = 20 000**, IRIXV3PD)
 
 | метрика | значение |
 |:--------|--------:|
-| **время построения** | **1 м 12 с** (прогон 2026-06-06: **1 м 11.8 с**) |
-| файл `data/index.irx` | **187 088 KB** |
+| **время построения** | **47 с** |
+| файл `data/index.irx` (полный, **V4**) | **187 088 КБ** |
+| posting payload V4 (табл. 4.1в) | **153 645 КБ** |
 | термов | 1 655 705 |
 | сжатие RAM / файл | **≈8.3×** |
 
@@ -152,8 +170,8 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 |:---------|--:|:--------|-----:|------:|--:|
 | **BuildIndex** | 400 | B/op | 1 364 405 | 1 102 132 | **−19%** |
 | **BuildIndex** | 2000 | B/op | 7 237 768 | 6 059 898 | **−16%** |
-| **BuildIndex** | 2000 | ns/op | 17.5M | 10.4M | **−40%** |
-| QueryEvalMixed | 2000 | ns/op (idx) | 1.52M | 0.99M | **−35%** |
+| BuildIndex | 2000 | ns/op | 17.5M | **10.8M** | **−38%** |
+| QueryEvalMixed | 2000 | ns/op (idx) | 1.52M | **769k** | **−49%** |
 | QueryEvalMixed | 2000 | B/op (idx) | 436 303 | 485 463 | +11%¹ |
 | QueryAdjNear | 2000 | ns/op (idx_adj) | 26 754 | 47 207 | +77%² |
 | QueryAdjNear | 400 | ns/op (idx_adj) | 7 308 | 6 691 | **−8%** |
@@ -168,22 +186,22 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 | `Docs.Tokens` для каждой статьи | гигабайты RAM | `AddLean` при загрузке XML |
 | токенизация по байтам | битая кириллица | `utf8.DecodeRuneInString` |
 
-После правок: **5 000** статей ≈ **23 с**, **20 000** ≈ **1 м 16 с** (табл. 4.1б).
+После правок: **5 000** статей ≈ **15 с**, **20 000** ≈ **47 с** (табл. 4.1б).
 
 ### 4.4 Агрегат `metrics/raw/benchmarks.csv` (синтетика)
 
 | bench | режим | N | ns/op | B/op |
 |:------|:------|--:|------:|-----:|
-| BenchmarkBuildIndex | build | 400 | 2 154 376 | 1 216 327 |
-| BenchmarkBuildIndex | build | 2000 | 11 948 394 | 6 643 466 |
-| BenchmarkQueryEvalMixed | idx | 400 | 174 934 | 96 346 |
-| BenchmarkQueryEvalMixed | scan | 400 | 209 968 | 100 120 |
-| BenchmarkQueryEvalMixed | idx | 2000 | 969 698 | 485 449 |
-| BenchmarkQueryEvalMixed | scan | 2000 | 1 172 871 | 494 681 |
-| BenchmarkQueryAdjNear | idx_adj | 400 | 7 184 | 8 352 |
-| BenchmarkQueryAdjNear | idx_near | 400 | 5 149 | 4 152 |
-| BenchmarkQueryAdjNear | idx_adj | 2000 | 43 954 | 42 656 |
-| BenchmarkQueryAdjNear | idx_near | 2000 | 36 289 | 20 008 |
+| BenchmarkBuildIndex | build | 400 | 2 014 247 | 1 232 871 |
+| BenchmarkBuildIndex | build | 2000 | 10 814 440 | 6 742 099 |
+| BenchmarkQueryEvalMixed | idx | 400 | 142 382 | 96 346 |
+| BenchmarkQueryEvalMixed | scan | 400 | 185 110 | 100 120 |
+| BenchmarkQueryEvalMixed | idx | 2000 | 768 695 | 485 442 |
+| BenchmarkQueryEvalMixed | scan | 2000 | 1 152 899 | 494 681 |
+| BenchmarkQueryAdjNear | idx_adj | 400 | 6 500 | 8 352 |
+| BenchmarkQueryAdjNear | idx_near | 400 | 4 497 | 4 152 |
+| BenchmarkQueryAdjNear | idx_adj | 2000 | 40 166 | 42 656 |
+| BenchmarkQueryAdjNear | idx_near | 2000 | 22 128 | 20 008 |
 
 #### Рисунок 4.1 — построение индекса (синт.)
 
@@ -201,13 +219,14 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 | OP | ns/op | B/op | allocs/op |
 |:---|------:|-----:|----------:|
-| AND | 12 105 | 19 064 | 12 |
-| OR | 21 150 | 27 257 | 13 |
-| NOT | 11 043 | 15 736 | 11 |
-| **ADJ** | **8 373** | **1 016** | **7** |
-| **NEAR** | **9 041** | **4 088** | **9** |
-| EDGE | 43 804 | 44 832 | 40 |
-| MSM | 694 907 | 272 000 | 570 |
+| AND | 10 898 | 19 064 | 12 |
+| OR | 20 917 | 27 256 | 13 |
+| NOT | 8 305 | 15 736 | 11 |
+| **ADJ** | **7 614** | **1 016** | **7** |
+| **NEAR** | **7 862** | **4 088** | **9** |
+| EDGE | 28 605 | 44 832 | 40 |
+| MSM | 619 732 | 272 000 | 570 |
+| Complex | 36 209 | 68 193 | — |
 
 Чистый **ADJ**: **1 016 B/op** vs составной `idx_adj` (**11 760 B/op**) — **≈11×**.
 
@@ -218,18 +237,17 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 #### N = 20 000 (idx, ns/op)
 
-| OP | ns/op | B/op | vs AND |
-|:---|------:|-----:|:-------|
-| **ADJ** | **8.3k** | 7.5k | **3.7× быстрее** |
-| **NEAR** | **9.0k** | 7.5k | 3.4× |
-| **AND** | **31.0k** | 49.8k | 1× |
-| OR | 83.0k | 116.6k | |
-| NOT | 221k | 354k | |
-| MSM | 61.4k | 71.7k | |
-| EDGE | 418k | 534k | |
-| **Complex** | **526k** | 805k | |
+| запрос | ns/op | B/op |
+|:-------|------:|-----:|
+| `ADJ(великая, отечественная)` | **7.0k** | 7.5k |
+| `NEAR(3, великая, отечественная)` | **9.3k** | 7.5k |
+| `россия AND москва` | **38.0k** | 49.8k |
+| `россия OR москва` | 69.8k | 116.6k |
+| `NOT россия` | 189k | 354k |
+| `FIRST(россия) AND NOT EDGE_END(город)` | 380k | 534k |
+| `(россия OR москва) AND история AND NOT футбол` | **518k** | 805k |
 
-AND idx **8×** быстрее scan (31 µs vs 248 µs). Источник: `metrics/raw/benchmarks_wiki.csv`, прогон 2026-06-06.
+`россия AND москва`: idx **38 µs** vs scan **250 µs** (**≈6.6×**). Источник: `metrics/raw/benchmarks_wiki.csv`.
 
 #### Рисунок 4.4 — ruwiki операторы (bar, N=20k)
 
@@ -250,9 +268,11 @@ AND idx **8×** быстрее scan (31 µs vs 248 µs). Источник: `metr
 | `Eval` vs `SlowEval` | корректность булевой алгебры + ADJ/NEAR/edge |
 | `TestCompressedMMapRoundtrip` | roundtrip RAM → **IRIXV3PD** → mmap, docLen, titles |
 | `TestDocLenLeanMMap` | `NTok` в `.irx` после `AddLean` |
-| `TestPostingsP4Roundtrip` | PForDelta + optimal streams в posting block |
+| `TestPostingsP4Roundtrip` | PForDelta + optimal streams (V4) |
 | `TestParseNotParens` | `история AND NOT(россии AND китая)` |
-| `TestCompressionFormatsSynthetic` | varint vs bitpack vs p4+opt (**табл. 4.1в**) |
+| `TestCompressionFileSizesSynthetic` | posting payload V1–V4 (**табл. 4.1в**) |
+| `TestCompressionFileSizesWiki` | posting payload V1–V4, ruwiki 20k |
+| `TestOptimalStreamRoundtrip` | varint|bitpack tf/pos |
 | `TestBM25Ordering` | порядок BM25 in-memory |
 | `TestBM25MMap` | BM25 RAM == BM25 mmap |
 | `TestParseCyrillicTerms` | UTF-8 термы в запросах |
@@ -264,8 +284,9 @@ AND idx **8×** быстрее scan (31 µs vs 248 µs). Источник: `metr
 
 ```bash
 go test ./... -count=1
-WIKI_COMPRESS_BENCH=1 WIKI_XML=../ruwiki-latest-pages-articles.xml \
-  go test ./internal/ir -run TestCompressionVarintVsBitpackWiki -v
+make collect-compression WIKI_XML=../ruwiki-latest-pages-articles.xml
+WIKI_COMPRESS_BENCH=1 CORPUS_XML=../ruwiki-latest-pages-articles.xml \
+  go test ./internal/ir -run TestCompressionFileSizesWiki -v
 ```
 
 ---
@@ -296,11 +317,11 @@ WIKI_COMPRESS_BENCH=1 WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 ## 7. Вывод
 
-Реализованы: координатный индекс, булевы операторы, ADJ/NEAR/edge, BM25 (mmap), **PForDelta+opt** (`IRIXV3PD`), **`irquery`** с заголовками wiki.
+Реализованы: … **PForDelta+opt (V4, боевой `.irx`)** …
 
 | Корпус | Главные цифры |
 |:-------|:--------------|
-| синтетика N=2000 | mixed idx **970k ns/op** (табл. 4.4) |
-| **ruwiki N=20 000** | `.irx` **187 088 KB** (V3, −3.6% vs V2), AND idx **31 µs**, ADJ **8.3 µs** (табл. 4.1б, 4.6) |
+| синтетика N=2000 | posting V4 **37 КБ**; mixed idx **769k ns/op** (табл. 4.4) |
+| **ruwiki N=20 000** | posting V4 **153 645 КБ** < V2; `.irx` **187 MB**; AND idx **38 µs** |
 
 Запросы к боевому индексу — через `irquery` по `data/index.irx` (булев или `-rank`). MSM и тяжёлые составные запросы по-прежнему доминируют в профиле на синтетике.

@@ -7,7 +7,7 @@ PLOT_DIR     := $(METRICS_OUT)/plots
 PROF_DIR     := $(METRICS_OUT)/profiles
 WIKI_XML     ?= ../ruwiki-latest-pages-articles.xml
 
-.PHONY: test bench collect collect-wiki metrics plot profile build-index build query clean
+.PHONY: test bench collect collect-wiki collect-compression metrics plot profile build-index build query clean
 
 build:
 	go build -o bin/irindex ./cmd/irindex
@@ -26,6 +26,9 @@ bench:
 # Полный прогон на ruwiki (после bunzip2): make bench-wiki BENCH_CORPUS=50000,100000 BENCH_TIME=2s
 WIKI_BENCH_CORPUS ?= 5000,10000,20000
 WIKI_BENCH_FILTER ?= ^BenchmarkOp
+
+collect-compression:
+	WIKI_XML='$(WIKI_XML)' CORPUS_XML='$(WIKI_XML)' go run ./scripts/collect_compression.go $(RAW_DIR)/compression_sizes.tsv
 
 bench-wiki:
 	mkdir -p $(RAW_DIR)

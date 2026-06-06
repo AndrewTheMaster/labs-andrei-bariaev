@@ -1,0 +1,4 @@
+corpus	n	v1_varint_post_kb	v2_bitpack_post_kb	v3_p4_bitpack_post_kb	v4_p4_opt_post_kb
+synthetic	400	15	7	7	7
+synthetic	2000	76	38	37	37
+ruwiki	20000	120522	161326	173422	153645
