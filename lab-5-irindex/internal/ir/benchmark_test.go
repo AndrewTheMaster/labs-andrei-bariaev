@@ -105,6 +105,7 @@ func BenchmarkOp(b *testing.B) {
 		{"ADJ", q.ADJ},
 		{"NEAR", q.NEAR},
 		{"EDGE", q.EDGE},
+		{"Complex", q.Complex},
 		{"MSM", q.MSM},
 	}
 	for _, n := range corpusSizes(b) {

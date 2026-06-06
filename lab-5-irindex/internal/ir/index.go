@@ -9,6 +9,7 @@ type posting struct {
 
 type Doc struct {
 	ID     uint32
+	Title  string // заголовок wiki (для irquery)
 	Tokens []string
 	NTok   int // число токенов (для edge/BM25/MSM, если Tokens не хранятся)
 }
@@ -37,21 +38,26 @@ func sortUint32(s []uint32) {
 
 // Add добавляет документ и сохраняет токены в RAM (тесты, MSM).
 func (ix *InvIndex) Add(tokens []string) uint32 {
-	return ix.add(tokens, true)
+	return ix.add(tokens, true, "")
 }
 
-// AddLean — только постинги + NTok; тексты не копируются (вики, большие корпуса).
+// AddLean — постинги + NTok + title; тексты не копируются (вики).
 func (ix *InvIndex) AddLean(tokens []string) uint32 {
-	return ix.add(tokens, false)
+	return ix.add(tokens, false, "")
 }
 
-func (ix *InvIndex) add(tokens []string, keepTokens bool) uint32 {
+// AddLeanTitle как AddLean с заголовком документа.
+func (ix *InvIndex) AddLeanTitle(tokens []string, title string) uint32 {
+	return ix.add(tokens, false, title)
+}
+
+func (ix *InvIndex) add(tokens []string, keepTokens bool, title string) uint32 {
 	id := uint32(len(ix.Docs))
 	if keepTokens {
 		cp := append([]string(nil), tokens...)
-		ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: cp, NTok: len(tokens)})
+		ix.Docs = append(ix.Docs, Doc{ID: id, Tokens: cp, NTok: len(tokens), Title: title})
 	} else {
-		ix.Docs = append(ix.Docs, Doc{ID: id, NTok: len(tokens)})
+		ix.Docs = append(ix.Docs, Doc{ID: id, NTok: len(tokens), Title: title})
 	}
 
 	for _, k := range ix.scratchKeys {

@@ -9,38 +9,45 @@ import (
 )
 
 type benchQueries struct {
-	AND  string
-	OR   string
-	NOT  string
-	ADJ  string
-	NEAR string
-	EDGE string
-	MSM  string
+	AND     string
+	OR      string
+	NOT     string
+	ADJ     string
+	NEAR    string
+	EDGE    string
+	MSM     string
+	Complex string
+}
+
+func RuWikiBenchQueries() benchQueries {
+	return benchQueries{
+		AND:     `россия AND москва`,
+		OR:      `россия OR москва`,
+		NOT:     `NOT россия`,
+		ADJ:     `ADJ(великая, отечественная)`,
+		NEAR:    `NEAR(3, великая, отечественная)`,
+		EDGE:    `FIRST(россия) AND NOT EDGE_END(город)`,
+		MSM:     `MSM(40, россия, город, река)`,
+		Complex: `(россия OR москва) AND история AND NOT футбол`,
+	}
 }
 
 func defaultBenchQueries() benchQueries {
 	path := ResolveCorpusPath()
 	if path != "" {
 		if _, err := os.Stat(path); err == nil {
-			return benchQueries{
-				AND:  `россия AND город`,
-				OR:   `россия OR город`,
-				NOT:  `NOT река`,
-				ADJ:  `ADJ(россия, город)`,
-				NEAR: `NEAR(3, россия, город)`,
-				EDGE: `FIRST(россия) AND NOT EDGE_END(город)`,
-				MSM:  `MSM(40, россия, город, река)`,
-			}
+			return RuWikiBenchQueries()
 		}
 	}
 	return benchQueries{
-		AND:  `alpha AND beta`,
-		OR:   `alpha OR gamma`,
-		NOT:  `NOT delta`,
-		ADJ:  `ADJ(alpha, beta)`,
-		NEAR: `NEAR(3, alpha, gamma)`,
-		EDGE: `FIRST(alpha) AND NOT EDGE_END(delta)`,
-		MSM:  `MSM(40, gamma, omega, alpha)`,
+		AND:     `alpha AND beta`,
+		OR:      `alpha OR gamma`,
+		NOT:     `NOT delta`,
+		ADJ:     `ADJ(alpha, beta)`,
+		NEAR:    `NEAR(3, alpha, gamma)`,
+		EDGE:    `FIRST(alpha) AND NOT EDGE_END(delta)`,
+		MSM:     `MSM(40, gamma, omega, alpha)`,
+		Complex: `(alpha OR beta) AND gamma AND NOT delta`,
 	}
 }
 

@@ -24,13 +24,17 @@ bench:
 	BENCH_CORPUS='$(BENCH_CORPUS)' go test ./internal/ir -run='^$$' -bench '$(BENCH_FILTER)' -benchmem -benchtime='$(BENCH_TIME)'
 
 # Полный прогон на ruwiki (после bunzip2): make bench-wiki BENCH_CORPUS=50000,100000 BENCH_TIME=2s
+WIKI_BENCH_CORPUS ?= 5000,10000,20000
+WIKI_BENCH_FILTER ?= ^BenchmarkOp
+
 bench-wiki:
 	mkdir -p $(RAW_DIR)
-	CORPUS_XML='$(WIKI_XML)' BENCH_CORPUS='$(BENCH_CORPUS)' \
-		go test ./internal/ir -run='^$$' -bench '$(BENCH_FILTER)' -benchmem -benchtime='$(BENCH_TIME)' \
+	CORPUS_XML='$(WIKI_XML)' BENCH_CORPUS='$(WIKI_BENCH_CORPUS)' \
+		go test ./internal/ir -run='^$$' -bench '$(WIKI_BENCH_FILTER)' -benchmem -benchtime='$(BENCH_TIME)' \
 		| tee $(RAW_DIR)/benchmarks_wiki.txt
 
-collect-wiki: bench-wiki
+# parse-wiki — csv и series из уже сохранённого benchmarks_wiki.txt
+parse-wiki:
 	awk 'BEGIN { OFS=","; print "bench,mode,corpus,iters,ns_per_op,bytes_per_op" } \
 	/^Benchmark/ { \
 	  fname=$$1; sub(/-[0-9]+$$/, "", fname); \
@@ -47,6 +51,23 @@ collect-wiki: bench-wiki
 	}' $(RAW_DIR)/benchmarks_wiki.txt > $(RAW_DIR)/benchmarks_wiki.csv
 	awk -F',' 'NR>1 && $$2=="AND_idx" {print $$3+0, $$5+0}' $(RAW_DIR)/benchmarks_wiki.csv > $(RAW_DIR)/series_wiki_AND_idx.tsv
 	awk -F',' 'NR>1 && $$2=="AND_scan" {print $$3+0, $$5+0}' $(RAW_DIR)/benchmarks_wiki.csv > $(RAW_DIR)/series_wiki_AND_scan.tsv
+	for op in AND OR NOT ADJ NEAR EDGE Complex MSM; do \
+	  awk -F',' -v OP="$$op" 'NR>1 && $$2==OP"_idx" {print $$3+0, $$5+0}' $(RAW_DIR)/benchmarks_wiki.csv > $(RAW_DIR)/series_wiki_$${op}_idx.tsv; \
+	done
+	go run ./scripts/gen_wiki_queries.go > $(RAW_DIR)/wiki_queries.tsv
+	awk -F'\t' '{ gsub(/"/, "\\\"", $$2); printf "wiki_q_%s = \"%s\"\n", $$1, $$2 }' $(RAW_DIR)/wiki_queries.tsv > $(RAW_DIR)/wiki_plot_queries.gnuplot
+	awk -F',' 'BEGIN { \
+	    while ((getline line < "'$(RAW_DIR)'/wiki_queries.tsv") > 0) { \
+	      split(line, a, "\t"); q[a[1]] = a[2]; \
+	    } \
+	  } \
+	  NR>1 && $$2 ~ /_idx$$/ && $$3==20000 { \
+	    sub(/_idx$$/, "", $$2); \
+	    label = ($$2 in q) ? q[$$2] : $$2; \
+	    print label "\t" $$5+0; \
+	  }' $(RAW_DIR)/benchmarks_wiki.csv | sort -t'	' -k2 -n > $(RAW_DIR)/wiki_ops_idx_ms.tsv
+
+collect-wiki: bench-wiki parse-wiki
 
 # Сборка индекса + размеры до/после сжатия
 build-index:

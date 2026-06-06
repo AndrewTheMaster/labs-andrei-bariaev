@@ -1,0 +1,8 @@
+AND	россия AND москва
+OR	россия OR москва
+NOT	NOT россия
+ADJ	ADJ(великая, отечественная)
+NEAR	NEAR(3, великая, отечественная)
+EDGE	FIRST(россия) AND NOT EDGE_END(город)
+Complex	(россия OR москва) AND история AND NOT футбол
+MSM	MSM(40, россия, город, река)

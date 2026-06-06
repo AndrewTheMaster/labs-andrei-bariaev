@@ -69,7 +69,7 @@ func BuildIndexFromWikiXML(path string, opt CorpusOpts) (*InvIndex, CorpusStats,
 		if text == "" {
 			continue
 		}
-		ix.AddLean(Tokenize(text))
+		ix.AddLeanTitle(Tokenize(text), strings.TrimSpace(page.Title))
 		st.PagesIndexed++
 		if progressEvery > 0 && st.PagesIndexed%progressEvery == 0 {
 			fmt.Fprintf(os.Stderr, "wiki: indexed %d docs (seen %d pages) %s\n",

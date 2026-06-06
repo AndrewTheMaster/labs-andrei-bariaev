@@ -1,0 +1,8 @@
+wiki_q_AND = "россия AND москва"
+wiki_q_OR = "россия OR москва"
+wiki_q_NOT = "NOT россия"
+wiki_q_ADJ = "ADJ(великая, отечественная)"
+wiki_q_NEAR = "NEAR(3, великая, отечественная)"
+wiki_q_EDGE = "FIRST(россия) AND NOT EDGE_END(город)"
+wiki_q_Complex = "(россия OR москва) AND история AND NOT футбол"
+wiki_q_MSM = "MSM(40, россия, город, река)"

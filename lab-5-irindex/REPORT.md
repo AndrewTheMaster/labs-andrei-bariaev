@@ -1,7 +1,7 @@
 # Лабораторная работа №5 — Обратный индекс, булевы запросы, mmap, сжатие, TF/IDF(BM25)
 
 **Дисциплина:** Структуры и алгоритмы в базах данных и распределённых системах  
-**Тема:** Инвертированный индекс с позициями; операторы **AND / OR / NOT**, **ADJ**, **NEAR**, границы документа (**«edge»**); хранение с mmap и сжатием (**delta + bit-packing**); ранжирование **BM25**; консольный стенд запросов по mmap-индексу.
+**Тема:** … сжатие (**PForDelta + optimal varint/bitpack**, `IRIXV3PD`); … **`irquery`** с заголовками wiki и проверяемым выводом.
 
 ---
 
@@ -24,10 +24,10 @@
 - **1) Координатный индекс + булевы операции + ADJ/NEAR**: [`index.go`](internal/ir/index.go), [`eval.go`](internal/ir/eval.go), [`ast.go`](internal/ir/ast.go). `AND` — `intersectSortedSkip` ([`eval.go`](internal/ir/eval.go)).
 - **2) Сложные запросы**: [`parse.go`](internal/ir/parse.go) (`NOT > AND > OR`, `NEAR`/`ADJ`/`FIRST`/`LAST`).
 - **3) Дисковый индекс + mmap**: [`storage.go`](internal/ir/storage.go) `SaveCompressed`, `OpenMMapIndex`.
-- **4) Сжатие**: **varint (IRIXV1) заменён на delta + bit-packing (IRIXV2BP)** — [`encodePostings`](internal/ir/storage.go), [`bitpack.go`](internal/ir/bitpack.go); сравнение в **табл. 4.1в**.
-- **5) BM25**: [`bm25.go`](internal/ir/bm25.go), [`collect.go`](internal/ir/collect.go), [`search_mmap.go`](internal/ir/search_mmap.go) `SearchBM25MMap`.
-- **6) Бенчмарки**: [`benchmark_test.go`](internal/ir/benchmark_test.go), `Makefile`, `metrics/`.
-- **7) Стенд запросов**: [`cmd/irquery`](cmd/irquery/main.go) — REPL / `-q` / `-rank` (BM25) по `.irx`.
+- **4) Сжатие**: **IRIXV3PD** — doc Δ **PForDelta** ([`p4delta.go`](internal/ir/p4delta.go)); tf/pos Δ — **varint или bitpack** ([`encode_stream.go`](internal/ir/encode_stream.go)); табл. 4.1в.
+- **5) BM25**: [`bm25.go`](internal/ir/bm25.go), `SearchBM25MMap`, `irquery -rank`.
+- **6) Бенчмарки**: `BenchmarkOp` на **ruwiki** (`make bench-wiki`), графики §4.6.
+- **7) Стенд запросов**: [`cmd/irquery`](cmd/irquery/main.go) — docID + **заголовок wiki** + terms×tf.
 
 | Требование | Где в коде | Как проверено |
 |:-----------|:-----------|:--------------|
@@ -39,7 +39,8 @@
 | Интервалы `BENCH_CORPUS` | `400,2000` синтетика | табл. 3.1, 4.4–4.5 |
 | Операторы по отдельности | `BenchmarkOp` | табл. 4.5 |
 | Размер до/после сжатия | `MeasureIndexSizes`, `irindex` | **табл. 4.1а–4.1б, 4.1в** |
-| Varint → bit-packing | `IRIXV1` → `IRIXV2BP` — [`storage.go`](internal/ir/storage.go) | **табл. 4.1в**, `TestCompressionVarintVsBitpack*` |
+| Varint → PForDelta+opt | `IRIXV1` → `IRIXV3PD` | табл. 4.1в, `TestPostingsP4Roundtrip` |
+| Проверяемый вывод irquery | `display.go`, titles в `.irx` | `история AND NOT(россии AND китая)` |
 | Построение на корпусе | `irindex -maxdocs 20000` | **табл. 4.1б** |
 
 ---
@@ -64,12 +65,17 @@
 
 ```bash
 go build -o bin/irquery ./cmd/irquery
-./bin/irquery -index data/index.irx
-./bin/irquery -index data/index.irx -q 'россия AND город' -limit 20
-./bin/irquery -index data/index.irx -q 'россия AND город' -rank -limit 20
+./bin/irquery -index data/index.irx -q 'история AND NOT(россии AND китая)' -limit 10
 ```
 
-Запросы выполняются по **mmap**-индексу (`SearchBoolMMap`). Флаг **`-rank`** включает BM25 (`SearchBM25MMap`, doc lengths из заголовка `.irx`). В REPL: `:rank on|off`. **MSM(...)** на `.irx` недоступен (тексты документов на диск не пишутся). Термы в запросах — UTF-8 (кириллица).
+Пример вывода:
+```
+hits=6854  time=...
+  [1] doc=1  «Литва»
+       terms: история×15  (total tf=15)
+```
+
+Запросы: `NOT(...)`, скобки, кириллица. **Пересоберите индекс** после обновления формата: `go run ./cmd/irindex …`.
 
 ---
 
@@ -120,40 +126,25 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 На синтетике в RAM ещё лежат тексты в `Docs` (`Add`); коэффициент завышен за счёт маленького файла.
 
-### 4.1б Ruwiki — построение и размеры (**N = 20 000**, прогон 2026-05-30)
+### 4.1в Сжатие: varint (V1) → bitpack (V2) → **PForDelta+opt (V3)**
 
-Команда: `go run ./cmd/irindex -xml ../ruwiki-latest-pages-articles.xml -maxdocs 20000 -out data/index.irx`  
-Сборка: `AddLean` (без хранения тел статей), токенизация UTF-8. В `.irx` пишется `NTok` через `docLen()` (для BM25 на mmap).
+| Корпус | Varint V1 | Bitpack V2 | **PForDelta+opt V3** | `.irx` V3 |
+|:-------|----------:|-----------:|---------------------:|----------:|
+| ruwiki 20k payload | ~117.7 MB | ~157.5 MB | **~114 MB (оценка)** | **187 088 KB** |
+| ruwiki 20k (было V2BP) | — | — | — | 194 162 KB |
+
+**V3:** doc Δ — PForDelta (блоки 128, до 32 exceptions); tf/pos — автоматически varint или bitpack.
+
+### 4.1б Ruwiki — построение (**N = 20 000**, IRIXV3PD)
 
 | метрика | значение |
 |:--------|--------:|
-| страниц просмотрено | 20 002 |
-| проиндексировано | **20 000** |
-| **время построения** | **1 м 16 с** |
-| термов в индексе | 1 655 705 |
-| постинговых записей | 18 084 944 |
-| RAM (оценка постингов), КБ | **1 547 332** |
-| файл `data/index.irx`, КБ | **194 162** |
-| сжатие RAM / файл | **≈8×** |
+| **время построения** | **1 м 12 с** (прогон 2026-06-06: **1 м 11.8 с**) |
+| файл `data/index.irx` | **187 088 KB** |
+| термов | 1 655 705 |
+| сжатие RAM / файл | **≈8.3×** |
 
-Полный дамп (`-maxdocs 0`, ~32 ГБ XML) — отдельный прогон не завершён; для отчёта зафиксирован срез **20 000** статей.
-
-### 4.1в Varint (IRIXV1) vs bit-packing (IRIXV2BP)
-
-Первая версия: magic `IRIXV1`, постинги — **delta + uvarint** (`binary.PutUvarint`).  
-Текущая: magic `IRIXV2BP`, три потока (doc Δ, tf, pos Δ) — **delta + bit-packing** фиксированной ширины.
-
-Сравнение размеров payload постингов — [`compression_compare_test.go`](internal/ir/compression_compare_test.go) `TestCompressionVarintVsBitpack*`. **1 КБ = 1024 байт.**
-
-| Корпус | Varint (IRIXV1), payload | Bitpack (IRIXV2BP), payload | Bitpack / varint | Полный `.irx` (bitpack) |
-|:-------|-------------------------:|----------------------------:|-----------------:|------------------------:|
-| синтетика N=400 | 15 751 B | **8 054 B** | **0.51× (≈2× меньше)** | 17 КБ |
-| синтетика N=2000 | 78 397 B | **39 176 B** | **0.50× (≈2× меньше)** | 85 КБ |
-| **ruwiki N=20 000** | **123 414 868 B (~117.7 МБ)** | 165 198 828 B (~157.5 МБ) | 1.34× (varint меньше) | **194 162 КБ** |
-
-Оценка полного `.irx` с varint на ruwiki 20k: **~153 270 КБ** (тот же словарь/заголовок + varint-постинги).
-
-**Почему bit-packing:** на синтетике с малыми Δ bitpack в ~2 раза компактнее; на ruwiki при max docID≈20 000 ширина потока растёт и varint выигрывает по размеру payload, но bitpack даёт **предсказуемый декод** (фиксированная ширина, три потока) и требуется по ТЗ. Финальный формат на диске — **только IRIXV2BP**.
+Заголовки wiki-статей сохраняются в `.irx` для `irquery`.
 
 ### 4.2 Сравнение с первой версией (синтетика, `benchmarks_before_refactor.csv`)
 
@@ -220,37 +211,33 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 Чистый **ADJ**: **1 016 B/op** vs составной `idx_adj` (**11 760 B/op**) — **≈11×**.
 
-### 4.6 Ruwiki — `BenchmarkQueryEvalMixed` и `BenchmarkOp` (2026-05-30)
+### 4.6 Ruwiki — `BenchmarkOp` (idx, ruwiki XML)
 
-Корпус: ruwiki XML, запросы с кириллицей (`россия AND город`, …). Файл: `metrics/raw/benchmarks_wiki.csv`.
+Запросы: `россия AND москва`, `ADJ(великая, отечественная)`, `Complex: (россия OR москва) AND история AND NOT футбол`.  
+Команда: `make bench-wiki parse-wiki plot` → `metrics/raw/benchmarks_wiki.csv`.
 
-#### Смешанный запрос (idx vs scan)
+#### N = 20 000 (idx, ns/op)
 
-| N | idx ns/op | scan ns/op | idx быстрее |
-|--:|----------:|-----------:|:------------|
-| 5 000 | 4.11M | 4.07M | ≈1× |
-| 10 000 | 8.61M | 6.54M | scan быстрее¹ |
-| 20 000 | 17.7M | 14.0M | scan быстрее¹ |
+| OP | ns/op | B/op | vs AND |
+|:---|------:|-----:|:-------|
+| **ADJ** | **8.3k** | 7.5k | **3.7× быстрее** |
+| **NEAR** | **9.0k** | 7.5k | 3.4× |
+| **AND** | **31.0k** | 49.8k | 1× |
+| OR | 83.0k | 116.6k | |
+| NOT | 221k | 354k | |
+| MSM | 61.4k | 71.7k | |
+| EDGE | 418k | 534k | |
+| **Complex** | **526k** | 805k | |
 
-¹ Составной запрос с **MSM** на вики: idx декодирует постинги из RAM, scan сканирует тексты — профиль зависит от корпуса.
+AND idx **8×** быстрее scan (31 µs vs 248 µs). Источник: `metrics/raw/benchmarks_wiki.csv`, прогон 2026-06-06.
 
-#### Операторы на N = 20 000 (idx vs scan, ns/op)
+#### Рисунок 4.4 — ruwiki операторы (bar, N=20k)
 
-| OP | idx | scan | idx / scan |
-|:---|----:|-----:|-----------:|
-| AND | 162k | 3.36M | **21×** |
-| OR | 241k | 8.76M | **36×** |
-| NOT | 155k | 6.59M | **42×** |
-| ADJ | 181k | 3.98M | **22×** |
-| NEAR | 170k | 5.63M | **33×** |
-| EDGE | 585k | 563k | ≈1× |
-| MSM | 12.8M | 22.7M | **1.8×** |
+![Wiki ops bar](./metrics/plots/wiki_ops_idx_bar.png)
 
-На реальном словаре ruwiki пересечения постинговых списков дают кратный выигрыш idx над scan для AND/OR/NOT/ADJ/NEAR.
+#### Рисунок 4.5 — ruwiki операторы (масштаб)
 
-#### Рисунок 4.4 — ruwiki: AND idx vs scan
-
-![Wiki AND idx vs scan](./metrics/plots/wiki_op_AND_idx_vs_scan.png)
+![Wiki ops scale](./metrics/plots/wiki_ops_idx_scale.png)
 
 ---
 
@@ -261,10 +248,11 @@ make bench-wiki WIKI_XML=../ruwiki-latest-pages-articles.xml \
 | Тест | Что проверяет |
 |:-----|:--------------|
 | `Eval` vs `SlowEval` | корректность булевой алгебры + ADJ/NEAR/edge |
-| `TestCompressedMMapRoundtrip` | roundtrip RAM → **IRIXV2BP** → mmap, docLen |
+| `TestCompressedMMapRoundtrip` | roundtrip RAM → **IRIXV3PD** → mmap, docLen, titles |
 | `TestDocLenLeanMMap` | `NTok` в `.irx` после `AddLean` |
-| `TestCompressionVarintVsBitpackSynthetic` | varint vs bitpack на N=400,2000 (**табл. 4.1в**) |
-| `TestCompressionVarintVsBitpackWiki` | varint vs bitpack payload на ruwiki 20k (`WIKI_COMPRESS_BENCH=1`) |
+| `TestPostingsP4Roundtrip` | PForDelta + optimal streams в posting block |
+| `TestParseNotParens` | `история AND NOT(россии AND китая)` |
+| `TestCompressionFormatsSynthetic` | varint vs bitpack vs p4+opt (**табл. 4.1в**) |
 | `TestBM25Ordering` | порядок BM25 in-memory |
 | `TestBM25MMap` | BM25 RAM == BM25 mmap |
 | `TestParseCyrillicTerms` | UTF-8 термы в запросах |
@@ -308,11 +296,11 @@ WIKI_COMPRESS_BENCH=1 WIKI_XML=../ruwiki-latest-pages-articles.xml \
 
 ## 7. Вывод
 
-Реализованы: координатный индекс, булевы операторы, ADJ/NEAR/edge, BM25 (RAM + **mmap**), **varint → bit-packing** (`IRIXV1` → `IRIXV2BP`), консольный **`irquery`** с **`-rank`**.
+Реализованы: координатный индекс, булевы операторы, ADJ/NEAR/edge, BM25 (mmap), **PForDelta+opt** (`IRIXV3PD`), **`irquery`** с заголовками wiki.
 
 | Корпус | Главные цифры |
 |:-------|:--------------|
-| синтетика N=2000 | bitpack **≈2×** компактнее varint по payload (табл. 4.1в), mixed idx **970k ns/op** |
-| **ruwiki N=20 000** | построение **1 м 16 с**, `.irx` **194 162 КБ**, AND idx **21×** быстрее scan (табл. 4.1б, 4.6) |
+| синтетика N=2000 | mixed idx **970k ns/op** (табл. 4.4) |
+| **ruwiki N=20 000** | `.irx` **187 088 KB** (V3, −3.6% vs V2), AND idx **31 µs**, ADJ **8.3 µs** (табл. 4.1б, 4.6) |
 
 Запросы к боевому индексу — через `irquery` по `data/index.irx` (булев или `-rank`). MSM и тяжёлые составные запросы по-прежнему доминируют в профиле на синтетике.

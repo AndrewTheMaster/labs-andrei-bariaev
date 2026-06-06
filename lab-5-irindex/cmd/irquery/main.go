@@ -1,9 +1,3 @@
-// Command irquery — интерактивный стенд запросов по mmap-индексу (.irx).
-//
-// Usage:
-//
-//	irquery -index data/index.irx
-//	irquery -index data/index.irx -q 'россия AND город'
 package main
 
 import (
@@ -18,6 +12,28 @@ import (
 	"siaod-hw5-irindex/internal/ir"
 )
 
+func printHits(lines []ir.HitLine, limit int) {
+	n := len(lines)
+	show := n
+	if show > limit {
+		show = limit
+	}
+	for i := 0; i < show; i++ {
+		h := lines[i]
+		if h.HasScore {
+			fmt.Printf("  [%d] doc=%d  score=%.4f  «%s»\n", i+1, h.DocID, h.Score, h.Title)
+		} else {
+			fmt.Printf("  [%d] doc=%d  «%s»\n", i+1, h.DocID, h.Title)
+		}
+		if h.Matched != "" {
+			fmt.Printf("       terms: %s  (total tf=%d)\n", h.Matched, h.TotalTF)
+		}
+	}
+	if n > show {
+		fmt.Printf("  ... (+%d)\n", n-show)
+	}
+}
+
 func main() {
 	indexPath := flag.String("index", "data/index.irx", "path to compressed mmap index")
 	query := flag.String("q", "", "single query (non-interactive)")
@@ -29,15 +45,15 @@ func main() {
 
 	mi, err := ir.OpenMMapIndex(*indexPath)
 	if err != nil {
-		log.Fatalf("open index %s: %v", *indexPath, err)
+		log.Fatalf("open index %s: %v (пересоберите: go run ./cmd/irindex …)", *indexPath, err)
 	}
 	defer mi.Close()
 
-	fmt.Printf("index: %s  docs=%d  terms=%d (mmap)\n", *indexPath, mi.NumDocs(), mi.Terms())
+	fmt.Printf("index: %s  docs=%d  terms=%d (mmap IRIXV3PD)\n", *indexPath, mi.NumDocs(), mi.Terms())
 	if *rank {
 		fmt.Printf("mode: BM25 (k1=%.2f b=%.2f)\n", *k1, *bParam)
 	}
-	fmt.Println("язык: AND OR NOT ADJ(...) NEAR(k,...) FIRST(...) EDGE_END(...) MSM(...) — MSM только в RAM-индексе")
+	fmt.Println("язык: AND OR NOT(...) ADJ(...) NEAR(k,...) FIRST(...) — MSM только RAM")
 	fmt.Println("команды: :q :quit  :help  :rank on|off")
 
 	run := func(q string) error {
@@ -65,46 +81,22 @@ func main() {
 		}
 		t0 := time.Now()
 		if *rank {
-			scored, _, err := ir.SearchBM25MMap(mi, q, *k1, *bParam)
+			scored, lines, err := ir.SearchBM25MMapDetailed(mi, q, *k1, *bParam)
 			elapsed := time.Since(t0)
 			if err != nil {
 				return err
 			}
-			n := len(scored)
-			fmt.Printf("hits=%d  time=%s\n", n, elapsed.Round(time.Microsecond))
-			show := n
-			if show > *limit {
-				show = *limit
-			}
-			for i := 0; i < show; i++ {
-				fmt.Printf("  doc=%d  score=%.4f\n", scored[i].DocID, scored[i].Score)
-			}
-			if n > show {
-				fmt.Printf("  ... (+%d)\n", n-show)
-			}
+			fmt.Printf("hits=%d  time=%s\n", len(scored), elapsed.Round(time.Microsecond))
+			printHits(lines, *limit)
 			return nil
 		}
-		ids, _, err := ir.SearchBoolMMapWarnMSM(mi, q)
+		ids, lines, err := ir.SearchBoolMMapDetailed(mi, q)
 		elapsed := time.Since(t0)
 		if err != nil {
 			return err
 		}
-		n := len(ids)
-		fmt.Printf("hits=%d  time=%s\n", n, elapsed.Round(time.Microsecond))
-		show := n
-		if show > *limit {
-			show = *limit
-		}
-		if show > 0 {
-			fmt.Print("docIDs:")
-			for i := 0; i < show; i++ {
-				fmt.Printf(" %d", ids[i])
-			}
-			if n > show {
-				fmt.Printf(" ... (+%d)", n-show)
-			}
-			fmt.Println()
-		}
+		fmt.Printf("hits=%d  time=%s\n", len(ids), elapsed.Round(time.Microsecond))
+		printHits(lines, *limit)
 		return nil
 	}
 
@@ -121,7 +113,8 @@ func main() {
 		line := strings.TrimSpace(sc.Text())
 		switch strings.ToLower(line) {
 		case "", ":help", "help":
-			fmt.Println("пример: россия AND город | ADJ(россия, город) | NOT река")
+			fmt.Println(`пример: история AND NOT(россии AND китая)
+  ADJ(россия, город)  |  :rank on`)
 		case ":q", ":quit", "quit", "exit":
 			return
 		default:

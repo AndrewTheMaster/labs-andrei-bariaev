@@ -1,58 +1,61 @@
-CORPUS_XML='../ruwiki-latest-pages-articles.xml' BENCH_CORPUS='5000,10000,20000' make bench
-make[1]: Entering directory '/home/andrew/ITMO/SIAOD/lab-5-irindex'
-BENCH_CORPUS='5000,10000,20000' go test ./internal/ir -run='^$' -bench '^Benchmark(QueryEvalMixed|Op)' -benchmem -benchtime='300ms'
+wiki: indexed 5000 docs (seen 5001 pages) 19.955s
 goos: linux
 goarch: amd64
 pkg: siaod-hw5-irindex/internal/ir
 cpu: AMD Eng Sample: 100-000000829-50_Y             
-BenchmarkQueryEvalMixed/idx_5000-16         	      84	   4107954 ns/op	 1239553 B/op	    2237 allocs/op
-BenchmarkQueryEvalMixed/scan_5000-16        	      79	   4066321 ns/op	 1238588 B/op	    2779 allocs/op
-BenchmarkQueryEvalMixed/idx_10000-16        	      40	   8609996 ns/op	 2554789 B/op	    4502 allocs/op
-BenchmarkQueryEvalMixed/scan_10000-16       	      48	   6544012 ns/op	 2493753 B/op	    5580 allocs/op
-BenchmarkQueryEvalMixed/idx_20000-16        	      18	  17678540 ns/op	 5290389 B/op	    9078 allocs/op
-BenchmarkQueryEvalMixed/scan_20000-16       	      27	  14006757 ns/op	 4979929 B/op	   11143 allocs/op
-BenchmarkOp/AND/idx/corp5000-16             	   10000	     39052 ns/op	   47741 B/op	      14 allocs/op
-BenchmarkOp/AND/scan/corp5000-16            	     554	    648640 ns/op	   33400 B/op	      13 allocs/op
-BenchmarkOp/OR/idx/corp5000-16              	    6472	     49214 ns/op	   85888 B/op	      16 allocs/op
-BenchmarkOp/OR/scan/corp5000-16             	     598	    623914 ns/op	   71544 B/op	      15 allocs/op
-BenchmarkOp/NOT/idx/corp5000-16             	   12639	     31415 ns/op	   41597 B/op	      13 allocs/op
-BenchmarkOp/NOT/scan/corp5000-16            	     728	    478575 ns/op	   21112 B/op	      12 allocs/op
-BenchmarkOp/ADJ/idx/corp5000-16             	   15499	     22812 ns/op	    4088 B/op	       9 allocs/op
-BenchmarkOp/ADJ/scan/corp5000-16            	     469	    745442 ns/op	    4088 B/op	       9 allocs/op
-BenchmarkOp/NEAR/idx/corp5000-16            	   12309	     38576 ns/op	   12920 B/op	      11 allocs/op
-BenchmarkOp/NEAR/scan/corp5000-16           	     261	   1390859 ns/op	   12920 B/op	      11 allocs/op
-BenchmarkOp/EDGE/idx/corp5000-16            	    2718	    128392 ns/op	  126176 B/op	      46 allocs/op
-BenchmarkOp/EDGE/scan/corp5000-16           	    4267	     90328 ns/op	    4088 B/op	       9 allocs/op
-BenchmarkOp/MSM/idx/corp5000-16             	     182	   1907551 ns/op	  684704 B/op	    1434 allocs/op
-BenchmarkOp/MSM/scan/corp5000-16            	      80	   4794316 ns/op	 2179486 B/op	    5012 allocs/op
-BenchmarkOp/AND/idx/corp10000-16            	    4564	     76691 ns/op	   98830 B/op	      16 allocs/op
-BenchmarkOp/AND/scan/corp10000-16           	     232	   1389529 ns/op	   71544 B/op	      15 allocs/op
-BenchmarkOp/OR/idx/corp10000-16             	    3010	    120242 ns/op	  168473 B/op	      18 allocs/op
-BenchmarkOp/OR/scan/corp10000-16            	     268	   1407375 ns/op	  141176 B/op	      17 allocs/op
-BenchmarkOp/NOT/idx/corp10000-16            	    5685	     72046 ns/op	   90766 B/op	      15 allocs/op
-BenchmarkOp/NOT/scan/corp10000-16           	     326	   1077698 ns/op	   49784 B/op	      14 allocs/op
-BenchmarkOp/ADJ/idx/corp10000-16            	    5372	     60710 ns/op	    7544 B/op	      10 allocs/op
-BenchmarkOp/ADJ/scan/corp10000-16           	     136	   2380651 ns/op	    7544 B/op	      10 allocs/op
-BenchmarkOp/NEAR/idx/corp10000-16           	    4362	     82537 ns/op	   33400 B/op	      13 allocs/op
-BenchmarkOp/NEAR/scan/corp10000-16          	     158	   2225491 ns/op	   33400 B/op	      13 allocs/op
-BenchmarkOp/EDGE/idx/corp10000-16           	    1245	    257371 ns/op	  251104 B/op	      51 allocs/op
-BenchmarkOp/EDGE/scan/corp10000-16          	    1942	    182114 ns/op	    7544 B/op	      10 allocs/op
-BenchmarkOp/MSM/idx/corp10000-16            	      76	   4714052 ns/op	 1385504 B/op	    2903 allocs/op
-BenchmarkOp/MSM/scan/corp10000-16           	      36	  10191757 ns/op	 4351386 B/op	   10013 allocs/op
-BenchmarkOp/AND/idx/corp20000-16            	    2016	    161614 ns/op	  198618 B/op	      18 allocs/op
-BenchmarkOp/AND/scan/corp20000-16           	     103	   3364539 ns/op	  141176 B/op	      17 allocs/op
-BenchmarkOp/OR/idx/corp20000-16             	    1401	    240661 ns/op	  329734 B/op	      20 allocs/op
-BenchmarkOp/OR/scan/corp20000-16            	      50	   8761798 ns/op	  272248 B/op	      19 allocs/op
-BenchmarkOp/NOT/idx/corp20000-16            	    2265	    155447 ns/op	  182249 B/op	      17 allocs/op
-BenchmarkOp/NOT/scan/corp20000-16           	      54	   6593433 ns/op	  100216 B/op	      16 allocs/op
-BenchmarkOp/ADJ/idx/corp20000-16            	    2282	    181091 ns/op	   12920 B/op	      11 allocs/op
-BenchmarkOp/ADJ/scan/corp20000-16           	      88	   3981817 ns/op	   12920 B/op	      11 allocs/op
-BenchmarkOp/NEAR/idx/corp20000-16           	    2035	    169762 ns/op	   71544 B/op	      15 allocs/op
-BenchmarkOp/NEAR/scan/corp20000-16          	      70	   5634669 ns/op	   71544 B/op	      15 allocs/op
-BenchmarkOp/EDGE/idx/corp20000-16           	     592	    584581 ns/op	  592864 B/op	      58 allocs/op
-BenchmarkOp/EDGE/scan/corp20000-16          	     798	    562784 ns/op	   12920 B/op	      11 allocs/op
-BenchmarkOp/MSM/idx/corp20000-16            	      31	  12769524 ns/op	 2814400 B/op	    5851 allocs/op
-BenchmarkOp/MSM/scan/corp20000-16           	      18	  22732841 ns/op	 8735513 B/op	   20016 allocs/op
+BenchmarkOp/AND/idx/corp5000-16         	   33154	     13155 ns/op	   13688 B/op	      11 allocs/op
+BenchmarkOp/AND/scan/corp5000-16        	    5575	     61425 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/OR/idx/corp5000-16          	   10000	     30536 ns/op	   39546 B/op	      14 allocs/op
+BenchmarkOp/OR/scan/corp5000-16         	    4568	     78448 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NOT/idx/corp5000-16         	   10000	     56917 ns/op	   70266 B/op	      15 allocs/op
+BenchmarkOp/NOT/scan/corp5000-16        	    3243	     98357 ns/op	   71544 B/op	      15 allocs/op
+BenchmarkOp/ADJ/idx/corp5000-16         	  121245	      3152 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkOp/ADJ/scan/corp5000-16        	    4749	     75251 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NEAR/idx/corp5000-16        	  115417	      3494 ns/op	    2040 B/op	       8 allocs/op
+BenchmarkOp/NEAR/scan/corp5000-16       	    5642	     63817 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/EDGE/idx/corp5000-16        	   10000	     68388 ns/op	   61464 B/op	       6 allocs/op
+BenchmarkOp/EDGE/scan/corp5000-16       	    5988	     61805 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/Complex/idx/corp5000-16     	    3754	    159887 ns/op	  205036 B/op	      56 allocs/op
+BenchmarkOp/Complex/scan/corp5000-16    	    3571	    100384 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/MSM/idx/corp5000-16         	   16904	     23899 ns/op	   27904 B/op	       6 allocs/op
+BenchmarkOp/MSM/scan/corp5000-16        	    6409	     57816 ns/op	       0 B/op	       0 allocs/op
+wiki: indexed 5000 docs (seen 5001 pages) 20.228s
+wiki: indexed 10000 docs (seen 10002 pages) 34.211s
+BenchmarkOp/AND/idx/corp10000-16        	   22960	     17956 ns/op	   22393 B/op	      12 allocs/op
+BenchmarkOp/AND/scan/corp10000-16       	    2847	    123188 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/OR/idx/corp10000-16         	   10000	     44128 ns/op	   59259 B/op	      15 allocs/op
+BenchmarkOp/OR/scan/corp10000-16        	    2208	    155804 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NOT/idx/corp10000-16        	    6259	    118946 ns/op	  182142 B/op	      18 allocs/op
+BenchmarkOp/NOT/scan/corp10000-16       	    2319	    173142 ns/op	  141176 B/op	      17 allocs/op
+BenchmarkOp/ADJ/idx/corp10000-16        	   70168	      4974 ns/op	    4088 B/op	       9 allocs/op
+BenchmarkOp/ADJ/scan/corp10000-16       	    2438	    151042 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NEAR/idx/corp10000-16       	   68469	      5856 ns/op	    4088 B/op	       9 allocs/op
+BenchmarkOp/NEAR/scan/corp10000-16      	    2689	    136121 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/EDGE/idx/corp10000-16       	    3501	    194551 ns/op	  223136 B/op	      24 allocs/op
+BenchmarkOp/EDGE/scan/corp10000-16      	    2851	    122526 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/Complex/idx/corp10000-16    	    2384	    249212 ns/op	  370951 B/op	      61 allocs/op
+BenchmarkOp/Complex/scan/corp10000-16   	    1783	    207758 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/MSM/idx/corp10000-16        	   10000	     34967 ns/op	   41856 B/op	       6 allocs/op
+BenchmarkOp/MSM/scan/corp10000-16       	    2848	    114560 ns/op	       0 B/op	       0 allocs/op
+wiki: indexed 5000 docs (seen 5001 pages) 17.786s
+wiki: indexed 10000 docs (seen 10002 pages) 31.818s
+wiki: indexed 15000 docs (seen 15002 pages) 44.764s
+wiki: indexed 20000 docs (seen 20002 pages) 56.637s
+BenchmarkOp/AND/idx/corp20000-16        	   10000	     30962 ns/op	   49788 B/op	      14 allocs/op
+BenchmarkOp/AND/scan/corp20000-16       	    1474	    248269 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/OR/idx/corp20000-16         	    7350	     83028 ns/op	  116606 B/op	      17 allocs/op
+BenchmarkOp/OR/scan/corp20000-16        	    1090	    320724 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NOT/idx/corp20000-16        	    3067	    220720 ns/op	  354189 B/op	      20 allocs/op
+BenchmarkOp/NOT/scan/corp20000-16       	    1144	    318267 ns/op	  370552 B/op	      20 allocs/op
+BenchmarkOp/ADJ/idx/corp20000-16        	   42748	      8303 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkOp/ADJ/scan/corp20000-16       	    1192	    298219 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/NEAR/idx/corp20000-16       	   37286	      9044 ns/op	    7544 B/op	      10 allocs/op
+BenchmarkOp/NEAR/scan/corp20000-16      	    1383	    257185 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/EDGE/idx/corp20000-16       	    1383	    418035 ns/op	  534496 B/op	      29 allocs/op
+BenchmarkOp/EDGE/scan/corp20000-16      	    1225	    269656 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/Complex/idx/corp20000-16    	    1150	    525647 ns/op	  805246 B/op	      69 allocs/op
+BenchmarkOp/Complex/scan/corp20000-16   	     883	    410117 ns/op	       0 B/op	       0 allocs/op
+BenchmarkOp/MSM/idx/corp20000-16        	    7078	     61405 ns/op	   71680 B/op	       6 allocs/op
+BenchmarkOp/MSM/scan/corp20000-16       	    1501	    230762 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	siaod-hw5-irindex/internal/ir	27.950s
-make[1]: Leaving directory '/home/andrew/ITMO/SIAOD/lab-5-irindex'
+ok  	siaod-hw5-irindex/internal/ir	268.267s

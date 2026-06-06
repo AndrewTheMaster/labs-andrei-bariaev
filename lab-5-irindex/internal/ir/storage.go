@@ -10,8 +10,8 @@ import (
 	"syscall"
 )
 
-// IRIX V2: delta + bit-packing (вместо varint).
-var fileMagic = [8]byte{'I', 'R', 'I', 'X', 'V', '2', 'B', 'P'}
+// IRIX V3: doc Δ — PForDelta; tf и pos Δ — varint или bitpack (что меньше).
+var fileMagic = [8]byte{'I', 'R', 'I', 'X', 'V', '3', 'P', 'D'}
 
 var errBitpackTrunc = errors.New("bitpack: truncated stream")
 
@@ -20,11 +20,12 @@ type termMeta struct {
 	ln  uint32
 }
 
-// MMapIndex хранит индекс в mmap-буфере; постинги декодируются по терму по требованию.
+// MMapIndex хранит индекс в mmap-бuфере; постинги декодируются по терму по требованию.
 type MMapIndex struct {
 	data    []byte
 	fd      *os.File
 	docLens []uint32
+	titles  []string
 	terms   map[string]termMeta
 }
 
@@ -40,7 +41,12 @@ func writeU16(buf *bytes.Buffer, v uint16) {
 	buf.Write(b[:])
 }
 
-// encodePostings: docID (первый абсолютный, остальные delta), tf, позиции (delta) — bit-packing по потокам.
+func writeChunk(buf *bytes.Buffer, payload []byte) {
+	writeU32(buf, uint32(len(payload)))
+	buf.Write(payload)
+}
+
+// encodePostings: docID Δ — PForDelta; tf и pos Δ — optimal (varint|bitpack).
 func encodePostings(ps []posting) []byte {
 	var buf bytes.Buffer
 	writeU32(&buf, uint32(len(ps)))
@@ -71,20 +77,17 @@ func encodePostings(ps []posting) []byte {
 		}
 	}
 
-	docBits, docPay := packUint32Stream(docVals)
-	tfBits, tfPay := packUint32Stream(tfVals)
-	posBits, posPay := packUint32Stream(posVals)
+	docPay := encodePForDelta(docVals)
+	tfCodec, tfPay := encodeOptimalStream(tfVals)
+	posCodec, posPay := encodeOptimalStream(posVals)
 
-	buf.WriteByte(docBits)
-	buf.WriteByte(tfBits)
-	buf.WriteByte(posBits)
+	buf.WriteByte(0) // doc codec: PForDelta
+	buf.WriteByte(tfCodec)
+	buf.WriteByte(posCodec)
 	buf.WriteByte(0)
-	writeU32(&buf, uint32(len(docPay)))
-	buf.Write(docPay)
-	writeU32(&buf, uint32(len(tfPay)))
-	buf.Write(tfPay)
-	writeU32(&buf, uint32(len(posPay)))
-	buf.Write(posPay)
+	writeChunk(&buf, docPay)
+	writeChunk(&buf, tfPay)
+	writeChunk(&buf, posPay)
 	return buf.Bytes()
 }
 
@@ -101,10 +104,13 @@ func decodePostings(data []byte) ([]posting, error) {
 	if len(data) < i+4 {
 		return nil, fmt.Errorf("postings header truncated")
 	}
-	docBits := data[i]
-	tfBits := data[i+1]
-	posBits := data[i+2]
+	docCodec := data[i]
+	tfCodec := data[i+1]
+	posCodec := data[i+2]
 	i += 4
+	if docCodec != 0 {
+		return nil, fmt.Errorf("unsupported doc codec %d", docCodec)
+	}
 
 	readChunk := func() ([]byte, error) {
 		if len(data) < i+4 {
@@ -133,11 +139,11 @@ func decodePostings(data []byte) ([]posting, error) {
 		return nil, err
 	}
 
-	docDeltas, err := unpackUint32Stream(docBits, docPay, nPost)
+	docDeltas, err := decodePForDelta(docPay, nPost)
 	if err != nil {
 		return nil, err
 	}
-	tfVals, err := unpackUint32Stream(tfBits, tfPay, nPost)
+	tfVals, err := decodeOptimalStream(tfCodec, tfPay, nPost)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +151,7 @@ func decodePostings(data []byte) ([]posting, error) {
 	for _, tf := range tfVals {
 		nPos += int(tf)
 	}
-	posDeltas, err := unpackUint32Stream(posBits, posPay, nPos)
+	posDeltas, err := decodeOptimalStream(posCodec, posPay, nPos)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +182,7 @@ func decodePostings(data []byte) ([]posting, error) {
 	return out, nil
 }
 
-// SaveCompressed сохраняет индекс в бинарном формате (delta + bit-packing).
+// SaveCompressed сохраняет индекс (PForDelta + optimal streams + titles).
 func SaveCompressed(ix *InvIndex, path string) error {
 	var buf bytes.Buffer
 	buf.Write(fileMagic[:])
@@ -184,6 +190,14 @@ func SaveCompressed(ix *InvIndex, path string) error {
 	writeU32(&buf, uint32(len(ix.postings)))
 	for i := range ix.Docs {
 		writeU32(&buf, uint32(ix.docLen(uint32(i))))
+	}
+	for _, d := range ix.Docs {
+		title := d.Title
+		if len(title) > 0xffff {
+			title = title[:0xffff]
+		}
+		writeU16(&buf, uint16(len(title)))
+		buf.WriteString(title)
 	}
 
 	keys := make([]string, 0, len(ix.postings))
@@ -236,7 +250,7 @@ func (mi *MMapIndex) parseHeader() error {
 		return fmt.Errorf("file too small")
 	}
 	if !bytes.Equal(mi.data[:8], fileMagic[:]) {
-		return fmt.Errorf("bad file magic")
+		return fmt.Errorf("bad file magic (expected IRIXV3PD)")
 	}
 	nDocs := int(binary.LittleEndian.Uint32(mi.data[8:12]))
 	nTerms := int(binary.LittleEndian.Uint32(mi.data[12:16]))
@@ -248,6 +262,19 @@ func (mi *MMapIndex) parseHeader() error {
 	for d := 0; d < nDocs; d++ {
 		mi.docLens[d] = binary.LittleEndian.Uint32(mi.data[i : i+4])
 		i += 4
+	}
+	mi.titles = make([]string, nDocs)
+	for d := 0; d < nDocs; d++ {
+		if len(mi.data) < i+2 {
+			return fmt.Errorf("truncated title len")
+		}
+		l := int(binary.LittleEndian.Uint16(mi.data[i : i+2]))
+		i += 2
+		if len(mi.data) < i+l {
+			return fmt.Errorf("truncated title")
+		}
+		mi.titles[d] = string(mi.data[i : i+l])
+		i += l
 	}
 	mi.terms = make(map[string]termMeta, nTerms)
 	for t := 0; t < nTerms; t++ {
@@ -301,6 +328,14 @@ func (mi *MMapIndex) DocLen(id uint32) int {
 		return 0
 	}
 	return int(mi.docLens[id])
+}
+
+// DocTitle — заголовок документа (wiki title), если сохранён при сборке.
+func (mi *MMapIndex) DocTitle(id uint32) string {
+	if int(id) >= len(mi.titles) {
+		return ""
+	}
+	return mi.titles[id]
 }
 
 func (mi *MMapIndex) df(term string) int {

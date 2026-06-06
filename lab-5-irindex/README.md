@@ -43,7 +43,7 @@ make build-index WIKI_XML=../ruwiki-latest-pages-articles.xml
 
 Печатаются: время построения, RAM (КБ), размер `.irx` (КБ), коэффициент сжатия.
 
-Формат файла: magic `IRIXV2BP`, постинги — **bit-packing** трёх потоков (doc Δ, tf, pos Δ).
+Формат файла: magic **`IRIXV3PD`**, doc Δ — **PForDelta**, tf/pos — **varint|bitpack**. Заголовки wiki в `.irx`.
 
 ## Стенд запросов (консоль)
 
@@ -58,10 +58,10 @@ make build-index WIKI_XML=../ruwiki-latest-pages-articles.xml
 ```bash
 ./bin/irquery -index data/index.irx -q 'россия AND город'
 ./bin/irquery -index data/index.irx -q 'ADJ(россия, город)' -limit 50
-./bin/irquery -index data/index.irx -q 'россия AND город' -rank -limit 20
+./bin/irquery -index data/index.irx -q 'история AND NOT(россии AND китая)' -limit 10
 ```
 
-Поддерживаются: `AND`, `OR`, `NOT`, `ADJ(a, b)`, `NEAR(k, a, b)`, `FIRST(term)`, `EDGE_END(term)`.  
+Вывод: **docID**, **заголовок статьи**, **terms×tf** (можно проверить глазами).  
 **`-rank`** — BM25 после булева фильтра (`-k1`, `-b`). В REPL: `:rank on|off`.  
 **MSM(...)** на дисковом индексе недоступен (в `.irx` нет текстов документов). Термы — UTF-8 (кириллица).
 
